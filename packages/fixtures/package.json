@@ -1,0 +1,17 @@
+{
+  "name": "@chunkfunk/fixtures",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "up": "docker compose -f docker-compose.yml up -d --wait",
+    "down": "docker compose -f docker-compose.yml down -v",
+    "seed": "tsx src/seed.ts"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.10"
+  }
+}

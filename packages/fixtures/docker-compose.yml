@@ -1,0 +1,23 @@
+# Postgres + pgvector for ChunkFunk fixture databases (PR-02).
+# Read-only from the CLI's perspective; seeded by `npm run fixtures:seed`.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: chunkfunk-fixtures
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      # Non-default host port to avoid clashing with a local Postgres.
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - chunkfunk_fixtures_data:/var/lib/postgresql/data
+
+volumes:
+  chunkfunk_fixtures_data:

@@ -1,0 +1,62 @@
+{
+  "name": "chunkfunk",
+  "version": "0.1.0",
+  "description": "Read-only CLI scanner for stale, duplicated, or broken RAG database chunks.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/victorioussol/chunkfunk-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/victorioussol/chunkfunk-cli/issues"
+  },
+  "homepage": "https://github.com/victorioussol/chunkfunk-cli#readme",
+  "bin": {
+    "chunkfunk": "./dist/chunkfunk.mjs"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "TELEMETRY.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/core",
+    "packages/cli",
+    "packages/fixtures"
+  ],
+  "scripts": {
+    "build": "esbuild packages/cli/src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/chunkfunk.mjs --banner:js='#!/usr/bin/env node' --external:@inquirer/prompts --external:commander --external:pg --external:pg-query-stream --external:picocolors --external:yaml --external:zod --external:pg-native && node scripts/mark-bin-executable.mjs",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "fixtures:up": "npm run up --workspace @chunkfunk/fixtures",
+    "fixtures:down": "npm run down --workspace @chunkfunk/fixtures",
+    "fixtures:seed": "npm run seed --workspace @chunkfunk/fixtures",
+    "publish:dry-run": "npm publish --dry-run"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7.2.1",
+    "commander": "^12.1.0",
+    "pg": "^8.13.1",
+    "pg-query-stream": "^4.7.1",
+    "picocolors": "^1.1.1",
+    "yaml": "^2.6.1",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/node": "^25.0.1",
+    "@types/pg": "^8.11.10",
+    "esbuild": "^0.27.2",
+    "eslint": "^9.39.4",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.50.0",
+    "vitest": "^3.2.4"
+  }
+}

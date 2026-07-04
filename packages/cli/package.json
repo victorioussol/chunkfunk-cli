@@ -1,0 +1,27 @@
+{
+  "name": "@chunkfunk/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "chunkfunk": "./bin/chunkfunk.mjs"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@chunkfunk/core": "*",
+    "@inquirer/prompts": "^7.2.1",
+    "commander": "^12.1.0",
+    "pg": "^8.13.1",
+    "pg-query-stream": "^4.7.1",
+    "picocolors": "^1.1.1",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.10"
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "version": 1,
+  "scan": {
+    "id": "3f0d5f0a-9a5c-4d1a-8a83-1f0e6f0b7c21",
+    "origin": "cli",
+    "startedAt": "2026-07-02T09:00:00.000Z",
+    "finishedAt": "2026-07-02T09:01:42.000Z",
+    "cliVersion": "0.1.0"
+  },
+  "stack": {
+    "fingerprintHash": "8c1f2b9e0d4a6c3f5e7a9b1d2c4e6f8a0b2d4f6a8c0e2f4a6b8d0f2a4c6e8f0a",
+    "frameworkGuess": "langchain",
+    "embeddingDims": 1536,
+    "embeddingModelGuess": "openai text-embedding-3-small or ada-002 (guess)",
+    "mapping": {
+      "version": 1,
+      "dialect": "pgvector",
+      "table": "public.langchain_pg_embedding",
+      "columns": {
+        "content": "document",
+        "embedding": "embedding",
+        "metadata": "cmetadata",
+        "documentId": null,
+        "sourceUrl": "meta:cmetadata.source",
+        "updatedAt": null
+      },
+      "joins": {
+        "collectionTable": "public.langchain_pg_collection",
+        "collectionFk": "collection_id",
+        "collectionNameColumn": "name"
+      }
+    }
+  },
+  "totals": {
+    "documents": 480,
+    "chunks": 12400,
+    "sources": 3
+  },
+  "health": {
+    "score": 71,
+    "scoreVersion": 1,
+    "subscores": {
+      "freshness": null,
+      "duplication": 62.5,
+      "quality": 84,
+      "risk": 50,
+      "coverage": null
+    },
+    "delta": {
+      "previousScore": 66,
+      "previousScanAt": "2026-06-25T09:00:00.000Z"
+    }
+  },
+  "findings": [
+    {
+      "type": "exact_duplicate",
+      "severity": "warning",
+      "title": "38 chunks are exact duplicates across 12 groups",
+      "evidence": {
+        "groups": 12,
+        "duplicateChunks": 38,
+        "corpusPct": 0.31,
+        "sampleRefs": ["chunk:1042", "chunk:2210"],
+        "excerpt": "Pricing starts at $29/month for the solo plan…"
+      },
+      "suggestedRepair": {
+        "kind": "dedupe",
+        "description": "Remove duplicate rows, keeping the newest chunk per group.",
+        "sql": "-- display only: SELECT ctid FROM public.langchain_pg_embedding …"
+      },
+      "affectedCount": 38
+    },
+    {
+      "type": "risky_chunk",
+      "severity": "critical",
+      "title": "1 chunk contains what looks like an API secret",
+      "evidence": {
+        "pattern": "sk-*",
+        "excerpt": "…set your key: sk-a…(redacted)",
+        "refs": ["chunk:9911"]
+      },
+      "suggestedRepair": null,
+      "affectedCount": 1
+    },
+    {
+      "type": "architecture",
+      "severity": "warning",
+      "title": "Your index has no timestamps — staleness can't be measured",
+      "evidence": {
+        "table": "public.langchain_pg_embedding"
+      },
+      "suggestedRepair": {
+        "kind": "add_column",
+        "description": "Add an updated_at column so freshness can be measured.",
+        "sql": "ALTER TABLE public.langchain_pg_embedding ADD COLUMN updated_at timestamptz default now();"
+      },
+      "affectedCount": 1
+    }
+  ],
+  "sources": [
+    {
+      "locator": "https://docs.example.com/sitemap.xml",
+      "kind": "sitemap",
+      "lastIndexedAt": "2026-06-20T08:00:00.000Z",
+      "lastChangedAt": "2026-07-01T16:20:00.000Z",
+      "status": "stale"
+    },
+    {
+      "locator": "example/docs-repo",
+      "kind": "github_repo",
+      "lastIndexedAt": null,
+      "lastChangedAt": null,
+      "status": "unknown"
+    }
+  ],
+  "nextActions": [
+    {
+      "rank": 1,
+      "title": "Rotate and remove the leaked API secret",
+      "findingRefs": [1]
+    },
+    {
+      "rank": 2,
+      "title": "Deduplicate 38 duplicate chunks",
+      "findingRefs": [0]
+    }
+  ]
+}

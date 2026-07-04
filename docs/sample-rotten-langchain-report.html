@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ChunkFunk report</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.5 -apple-system, system-ui, sans-serif; max-width: 820px; margin: 2rem auto; padding: 0 1rem; }
+  .score { font-size: 3rem; font-weight: 700; }
+  .score.good { color: #16a34a; } .score.warn { color: #ca8a04; } .score.bad { color: #dc2626; }
+  .subs { color: #666; margin: .25rem 0 1.5rem; }
+  section.sev h2 { border-bottom: 1px solid #ccc; padding-bottom: .25rem; }
+  section.critical h2 { color: #dc2626; } section.warning h2 { color: #ca8a04; } section.info h2 { color: #666; }
+  details { margin: .35rem 0; } summary { cursor: pointer; }
+  pre { background: rgba(127,127,127,.12); padding: .5rem; overflow-x: auto; border-radius: 4px; }
+  pre.sql { border-left: 3px solid #16a34a; }
+  table { border-collapse: collapse; width: 100%; } td, th { border: 1px solid #ccc; padding: .35rem .5rem; text-align: left; }
+  .more { color: #888; list-style: none; }
+  footer { color: #888; margin-top: 2rem; font-size: .9rem; }
+</style>
+</head>
+<body>
+  <div class="score warn">62<span style="font-size:1rem">/100</span></div>
+  <p class="subs">freshness — · duplication 58 · quality 83 · risk 25 · coverage —
+  <br>298 chunks · 0 sources · langchain</p>
+  <section class="sev critical"><h2>CRITICAL (4)</h2><details><summary><code>exact_duplicate</code> (1)</summary><ul><li><code>exact_duplicate</code> 10.1% of the corpus is exact-duplicated<pre>{
+  &quot;summary&quot;: true,
+  &quot;duplicateGroups&quot;: 10,
+  &quot;duplicatedChunks&quot;: 30,
+  &quot;corpusPct&quot;: 10.1,
+  &quot;sampled&quot;: false
+}</pre></li></ul></details><details><summary><code>risky_chunk</code> (3)</summary><ul><li><code>risky_chunk</code> Chunk contains what looks like a secret<pre>{
+  &quot;ref&quot;: &quot;(13,35)&quot;,
+  &quot;kind&quot;: &quot;secret&quot;,
+  &quot;matches&quot;: [
+    {
+      &quot;pattern&quot;: &quot;openai_key&quot;,
+      &quot;redacted&quot;: &quot;sk-F…&quot;
+    }
+  ]
+}</pre></li><li><code>risky_chunk</code> Chunk contains what looks like a secret<pre>{
+  &quot;ref&quot;: &quot;(13,36)&quot;,
+  &quot;kind&quot;: &quot;secret&quot;,
+  &quot;matches&quot;: [
+    {
+      &quot;pattern&quot;: &quot;aws_access_key&quot;,
+      &quot;redacted&quot;: &quot;AKIA…&quot;
+    }
+  ]
+}</pre></li><li><code>risky_chunk</code> Chunk contains what looks like a secret<pre>{
+  &quot;ref&quot;: &quot;(13,37)&quot;,
+  &quot;kind&quot;: &quot;secret&quot;,
+  &quot;matches&quot;: [
+    {
+      &quot;pattern&quot;: &quot;private_key&quot;,
+      &quot;redacted&quot;: &quot;----…&quot;
+    }
+  ]
+}</pre></li></ul></details></section><section class="sev warning"><h2>WARNING (31)</h2><details><summary><code>exact_duplicate</code> (10)</summary><ul><li><code>exact_duplicate</code> 3 chunks are exact duplicates<pre>{
+  &quot;duplicateChunks&quot;: 3,
+  &quot;refs&quot;: [
+    &quot;(10,11)&quot;,
+    &quot;(10,12)&quot;,
+    &quot;(10,13)&quot;
+  ],
+  &quot;excerpt&quot;: &quot;OUR REFUND POLICY ALLOWS CANCELLATION WITHIN THIRTY DAYS OF PURCHASE FOR A FULL REFUND. CONTACT SUPPORT TO START THE PROCESS FOR GROUP 0.&quot;,
+  &quot;sampled&quot;: false
+}</pre></li><li><code>exact_duplicate</code> 3 chunks are exact duplicates<pre>{
+  &quot;duplicateChunks&quot;: 3,
+  &quot;refs&quot;: [
+    &quot;(10,14)&quot;,
+    &quot;(10,15)&quot;,
+    &quot;(10,16)&quot;
+  ],
+  &quot;excerpt&quot;: &quot;OUR REFUND POLICY ALLOWS CANCELLATION WITHIN THIRTY DAYS OF PURCHASE FOR A FULL REFUND. CONTACT SUPPORT TO START THE PROCESS FOR GROUP 1.&quot;,
+  &quot;sampled&quot;: false
+}</pre></li><li><code>exact_duplicate</code> 3 chunks are exact duplicates<pre>{
+  &quot;duplicateChunks&quot;: 3,
+  &quot;refs&quot;: [
+    &quot;(10,17)&quot;,
+    &quot;(10,18)&quot;,
+    &quot;(10,19)&quot;
+  ],
+  &quot;excerpt&quot;: &quot;OUR REFUND POLICY ALLOWS CANCELLATION WITHIN THIRTY DAYS OF PURCHASE FOR A FULL REFUND. CONTACT SUPPORT TO START THE PROCESS FOR GROUP 2.&quot;,
+  &quot;sampled&quot;: false
+}</pre></li><li><code>exact_duplicate</code> 3 chunks are exact duplicates<pre>{
+  &quot;duplicateChunks&quot;: 3,
+  &quot;refs&quot;: [
+    &quot;(10,20)&quot;,
+    &quot;(10,21)&quot;,
+    &quot;(10,22)&quot;
+  ],
+  &quot;excerpt&quot;: &quot;Our refund policy allows cancellation within thirty days of purchase for a full refund. Contact support to start the process for group 3.&quot;,
+  &quot;sampled&quot;: false
+}</pre></li><li><code>exact_duplicate</code> 3 chunks are exact duplicates<pre>{
+  &quot;duplicateChunks&quot;: 3,
+  &quot;refs&quot;: [
+    &quot;(10,23)&quot;,
+    &quot;(11,1)&quot;,
+    &quot;(11,2)&quot;
+  ],
+  &quot;excerpt&quot;: &quot;Our refund policy allows cancellation within thirty days of purchase for a full refund. Contact support to start the process for group 4.&quot;,
+  &quot;sampled&quot;: false
+}</pre></li><li class="more">+5 more</li></ul></details><details><summary><code>near_duplicate</code> (20)</summary><ul><li><code>near_duplicate</code> Two chunks are near-duplicates<pre>{
+  &quot;refs&quot;: [
+    &quot;(11,18)&quot;,
+    &quot;(11,19)&quot;
+  ],
+  &quot;similarity&quot;: 0.995,
+  &quot;threshold&quot;: 0.97
+}</pre></li><li><code>near_duplicate</code> Two chunks are near-duplicates<pre>{
+  &quot;refs&quot;: [
+    &quot;(11,20)&quot;,
+    &quot;(11,21)&quot;
+  ],
+  &quot;similarity&quot;: 0.995,
+  &quot;threshold&quot;: 0.97
+}</pre></li><li><code>near_duplicate</code> Two chunks are near-duplicates<pre>{
+  &quot;refs&quot;: [
+    &quot;(11,22)&quot;,
+    &quot;(11,23)&quot;
+  ],
+  &quot;similarity&quot;: 0.995,
+  &quot;threshold&quot;: 0.97
+}</pre></li><li><code>near_duplicate</code> Two chunks are near-duplicates<pre>{
+  &quot;refs&quot;: [
+    &quot;(11,24)&quot;,
+    &quot;(11,25)&quot;
+  ],
+  &quot;similarity&quot;: 0.995,
+  &quot;threshold&quot;: 0.97
+}</pre></li><li><code>near_duplicate</code> Two chunks are near-duplicates<pre>{
+  &quot;refs&quot;: [
+    &quot;(11,26)&quot;,
+    &quot;(12,1)&quot;
+  ],
+  &quot;similarity&quot;: 0.995,
+  &quot;threshold&quot;: 0.97
+}</pre></li><li class="more">+15 more</li></ul></details><details><summary><code>architecture</code> (1)</summary><ul><li><code>architecture</code> Your index has no timestamps — staleness can't be measured<pre>{
+  &quot;table&quot;: &quot;public.langchain_pg_embedding&quot;
+}</pre><pre class="sql">ALTER TABLE public.langchain_pg_embedding ADD COLUMN updated_at timestamptz default now();</pre></li></ul></details></section><section class="sev info"><h2>INFO (25)</h2><details><summary><code>thin_chunk</code> (25)</summary><ul><li><code>thin_chunk</code> Thin chunk (short)<pre>{
+  &quot;ref&quot;: &quot;(13,10)&quot;,
+  &quot;reason&quot;: &quot;short&quot;,
+  &quot;length&quot;: 7,
+  &quot;excerpt&quot;: &quot;Note 0.&quot;,
+  &quot;corpusPct&quot;: 8.4,
+  &quot;truncatedFindings&quot;: false
+}</pre></li><li><code>thin_chunk</code> Thin chunk (short)<pre>{
+  &quot;ref&quot;: &quot;(13,11)&quot;,
+  &quot;reason&quot;: &quot;short&quot;,
+  &quot;length&quot;: 7,
+  &quot;excerpt&quot;: &quot;Note 1.&quot;,
+  &quot;corpusPct&quot;: 8.4,
+  &quot;truncatedFindings&quot;: false
+}</pre></li><li><code>thin_chunk</code> Thin chunk (short)<pre>{
+  &quot;ref&quot;: &quot;(13,12)&quot;,
+  &quot;reason&quot;: &quot;short&quot;,
+  &quot;length&quot;: 7,
+  &quot;excerpt&quot;: &quot;Note 2.&quot;,
+  &quot;corpusPct&quot;: 8.4,
+  &quot;truncatedFindings&quot;: false
+}</pre></li><li><code>thin_chunk</code> Thin chunk (short)<pre>{
+  &quot;ref&quot;: &quot;(13,13)&quot;,
+  &quot;reason&quot;: &quot;short&quot;,
+  &quot;length&quot;: 7,
+  &quot;excerpt&quot;: &quot;Note 3.&quot;,
+  &quot;corpusPct&quot;: 8.4,
+  &quot;truncatedFindings&quot;: false
+}</pre></li><li><code>thin_chunk</code> Thin chunk (short)<pre>{
+  &quot;ref&quot;: &quot;(13,14)&quot;,
+  &quot;reason&quot;: &quot;short&quot;,
+  &quot;length&quot;: 7,
+  &quot;excerpt&quot;: &quot;Note 4.&quot;,
+  &quot;corpusPct&quot;: 8.4,
+  &quot;truncatedFindings&quot;: false
+}</pre></li><li class="more">+20 more</li></ul></details></section>
+  
+  <section><h2>Fix first</h2><ol><li>10.1% of the corpus is exact-duplicated</li><li>Chunk contains what looks like a secret</li><li>Chunk contains what looks like a secret</li><li>Chunk contains what looks like a secret</li><li>3 chunks are exact duplicates</li></ol></section>
+  <footer>Generated by ChunkFunk. Run <code>chunkfunk sync</code> to track health over time.</footer>
+</body>
+</html>

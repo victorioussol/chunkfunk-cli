@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "system": {
+    "name": "my-rag"
+  },
+  "connection": {
+    "env": "DATABASE_URL"
+  },
+  "mapping": {
+    "version": 1,
+    "dialect": "pgvector",
+    "table": "public.langchain_pg_embedding",
+    "columns": {
+      "content": "document",
+      "embedding": "embedding",
+      "metadata": "cmetadata",
+      "documentId": null,
+      "sourceUrl": "meta:cmetadata.source",
+      "updatedAt": null
+    }
+  },
+  "sources": [
+    {
+      "kind": "sitemap",
+      "locator": "https://docs.example.com/sitemap.xml"
+    }
+  ],
+  "sync": {
+    "enabled": false,
+    "apiUrl": "https://chunkfunk.app"
+  },
+  "telemetry": false,
+  "thresholds": {
+    "nearDuplicateCosine": 0.97
+  }
+}

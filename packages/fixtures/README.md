@@ -1,0 +1,76 @@
+# @chunkfunk/fixtures
+
+Dockerized Postgres + pgvector databases seeded with **planted problems**, used by
+the PR-03 detector tests and PR-04/PR-05 introspection/scan tests.
+
+> ⚠️ **The counts below are a contract.** PR-03's detector tests assert against
+> these exact numbers. Do not change a fixture without updating this table and the
+> matching constants in [`src/planted.ts`](src/planted.ts).
+
+## Usage
+
+```bash
+npm run fixtures:up     # start Postgres+pgvector (host port 55432), wait for healthy
+npm run fixtures:seed   # create + seed the four fixture databases (idempotent)
+npm run fixtures:down   # stop and remove the container + volume
+```
+
+Connection base (override with `FIXTURES_PG_URL`):
+`postgresql://postgres:postgres@localhost:55432/<database>`
+
+The seed is fully deterministic (seeded PRNG) and idempotent — re-running rebuilds
+each database from a clean `public` schema. It self-checks the counts and the
+near-duplicate cosine similarities at the end and exits non-zero on any drift.
+
+## Fixtures
+
+Each fixture is its own database so introspection sees one RAG system per connection.
+
+| Database | Recipe (PR-04) | Table(s) | Embedding dims | Timestamp column |
+|---|---|---|---|---|
+| `fixture_langchain` | `langchain-pgvector` (auto) | `langchain_pg_embedding` + `langchain_pg_collection` | 1536 | **none** (missing-timestamp fixture) |
+| `fixture_llamaindex` | `llamaindex-pgvector` (auto) | `data_embeddings` | **mixed** 768 / 1536 | none |
+| `fixture_custom` | interactive mapping | `kb_entries` (two long text columns) | 1024 | `modified_at` |
+| `fixture_supabase_docs` | `supabase-docs-tutorial` (auto) | `documents` | 1536 | none |
+
+## Planted problems (exact counts)
+
+### `fixture_langchain` — the rotten corpus (298 chunks total)
+
+| Problem | Detector (§5) | Count | Notes |
+|---|---|---|---|
+| Healthy chunks | — | 200 | Long, capitalized, terminated; no detector fires |
+| Exact duplicates | `exact-duplicate` | **30 rows in 10 groups of 3** | 3 groups are duplicates **only after normalization** (differ by case/whitespace); 20 redundant copies (rows beyond the first per group) |
+| Near duplicates | `near-duplicate` | **20 pairs** (40 rows) | Distinct text; embeddings cosine ≥ 0.97 by construction (planted near-neighbor) |
+| Thin chunks | `thin-chunk` | **25** | All < 120 normalized chars |
+| Risky (secrets) | `risky-chunk` | **3** | One fake OpenAI `sk-…`, one fake AWS `AKIA…`, one fake `-----BEGIN PRIVATE KEY-----` — all non-functional |
+| Missing timestamps | `freshness` | table-level | No `updated_at`/`created_at` column → one `architecture` finding |
+
+Corpus-level: 30/298 ≈ 10.1% of rows are in exact-duplicate groups (> 5% → the
+`exact-duplicate` detector's corpus-wide `critical` summary also fires).
+
+### `fixture_llamaindex` — embedding integrity (53 chunks total)
+
+| Problem | Detector (§5) | Count | Notes |
+|---|---|---|---|
+| Healthy chunks @ 768 dims | — | 45 | Majority dimension |
+| Off-dimension rows @ 1536 | `embedding-integrity` (mixed dims → `critical`) | **5** | Column is unconstrained `vector` so rows may differ |
+| NULL embeddings | `embedding-integrity` (`embedding_null` → `warning`) | **3** | — |
+
+### `fixture_custom` — clean (100 chunks total)
+
+No planted problems. Verifies **zero false positives** (esp. zero false-positive
+secrets, per PR-03). Two long text columns (`body_text`, `summary`) intentionally
+defeat auto-detection so PR-04 exercises the interactive column picker.
+
+### `fixture_supabase_docs` — clean/healthy (60 chunks total)
+
+No planted problems. Second auto-detect target for PR-04; `content` + `embedding`
++ `metadata` match the `supabase-docs-tutorial` recipe directly.
+
+## Requirements
+
+A working Docker daemon. Docker Desktop on some machines fails to start (privileged
+port / vmnetd error requiring interactive admin approval); [Colima](https://github.com/abiosoft/colima)
+(`brew install colima && colima start`) is a userspace alternative that needs no
+admin prompt.
