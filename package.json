@@ -13,7 +13,7 @@
   },
   "homepage": "https://github.com/victorioussol/chunkfunk-cli#readme",
   "bin": {
-    "chunkfunk": "dist/chunkfunk"
+    "chunkfunk": "dist/chunkfunk.js"
   },
   "files": [
     "dist/",
@@ -30,7 +30,7 @@
     "packages/fixtures"
   ],
   "scripts": {
-    "build": "esbuild packages/cli/src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/chunkfunk --banner:js='#!/usr/bin/env node' --external:@inquirer/prompts --external:commander --external:pg --external:pg-query-stream --external:picocolors --external:yaml --external:zod --external:pg-native && node scripts/mark-bin-executable.mjs",
+    "build": "esbuild packages/cli/src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/chunkfunk.js --banner:js='#!/usr/bin/env node' --external:@inquirer/prompts --external:commander --external:pg --external:pg-query-stream --external:picocolors --external:yaml --external:zod --external:pg-native && node scripts/mark-bin-executable.mjs",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
