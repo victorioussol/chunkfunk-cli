@@ -32,6 +32,7 @@ const DATABASES = {
   llamaindex: "fixture_llamaindex",
   custom: "fixture_custom",
   supabaseDocs: "fixture_supabase_docs",
+  metadataHealth: "fixture_metadata_health",
   guiriLike: "fixture_guiri_like",
 } as const;
 
@@ -269,6 +270,7 @@ async function seedSupabaseDocs(): Promise<void> {
         embedding vector(${DIMS.supabaseDocs}),
         metadata jsonb
       );
+      create index documents_embedding_hnsw_idx on documents using hnsw (embedding vector_cosine_ops);
     `);
     const rng = mulberry32(0xa1b2c3d4);
     await client.query("begin");
@@ -287,7 +289,47 @@ async function seedSupabaseDocs(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Fixture E — production-like multi-table pgvector layout. The real chunk table
+// Fixture E — metadata health. Looks like a normal pgvector table, but planted
+// metadata drift proves filter-readiness checks against real Postgres rows.
+// ---------------------------------------------------------------------------
+async function seedMetadataHealth(): Promise<void> {
+  await withClient(dbUrl(DATABASES.metadataHealth), async (client) => {
+    await resetSchema(client);
+    await client.query(`
+      create table metadata_documents (
+        id uuid primary key default gen_random_uuid(),
+        content text not null,
+        embedding vector(${DIMS.metadataHealth}),
+        metadata jsonb,
+        created_at timestamptz not null default now()
+      );
+    `);
+    const rng = mulberry32(0x4d455441);
+    await client.query("begin");
+    for (let i = 0; i < PLANTED.metadataHealth.total; i += 1) {
+      const metadata = i < PLANTED.metadataHealth.missingMetadataRows
+        ? null
+        : {
+            source: sourceUrl(i),
+            tenant_id: i % 2 === 0 ? "tenant-a" : 1001,
+            ...(i % 3 === 0 ? { region: "eu" } : {}),
+          };
+      await client.query(
+        `insert into metadata_documents (content, embedding, metadata)
+         values ($1, $2, $3)`,
+        [
+          healthyChunk(i),
+          toVectorLiteral(unitVector(DIMS.metadataHealth, rng)),
+          metadata === null ? null : JSON.stringify(metadata),
+        ],
+      );
+    }
+    await client.query("commit");
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Fixture F — production-like multi-table pgvector layout. The real chunk table
 // should win over cache/internal vector tables without prompting.
 // ---------------------------------------------------------------------------
 async function seedGuiriLike(): Promise<void> {
@@ -492,6 +534,32 @@ async function verify(): Promise<void> {
     if (total !== PLANTED.supabaseDocs.healthy) {
       throw new Error(`supabase-docs total ${total} !== ${PLANTED.supabaseDocs.healthy}`);
     }
+    const indexes = await scalar(
+      client,
+      `select count(*) from pg_indexes
+       where schemaname = 'public'
+         and tablename = 'documents'
+         and indexname = 'documents_embedding_hnsw_idx'`,
+    );
+    if (indexes !== 1) throw new Error("supabase-docs fixture must have an HNSW vector index");
+  });
+
+  await withClient(dbUrl(DATABASES.metadataHealth), async (client) => {
+    const total = await scalar(client, "select count(*) from metadata_documents");
+    if (total !== PLANTED.metadataHealth.total) {
+      throw new Error(`metadata-health total ${total} !== ${PLANTED.metadataHealth.total}`);
+    }
+    const missing = await scalar(client, "select count(*) from metadata_documents where metadata is null");
+    if (missing !== PLANTED.metadataHealth.missingMetadataRows) {
+      throw new Error(
+        `metadata-health missing metadata ${missing} !== ${PLANTED.metadataHealth.missingMetadataRows}`,
+      );
+    }
+    const tenantTypes = await scalar(
+      client,
+      "select count(distinct jsonb_typeof(metadata->'tenant_id')) from metadata_documents where metadata ? 'tenant_id'",
+    );
+    if (tenantTypes !== 2) throw new Error("metadata-health fixture must contain mixed tenant_id value types");
   });
 
   await withClient(dbUrl(DATABASES.guiriLike), async (client) => {
@@ -519,6 +587,7 @@ async function main(): Promise<void> {
   await seedLlamaindex();
   await seedCustom();
   await seedSupabaseDocs();
+  await seedMetadataHealth();
   await seedGuiriLike();
   await verify();
   console.log(
@@ -531,6 +600,8 @@ async function main(): Promise<void> {
       `(${PLANTED.llamaindex.mixedDimRows} off-dim, ${PLANTED.llamaindex.nullEmbeddingRows} null embeddings)\n` +
       `  ${DATABASES.custom}: ${PLANTED.custom.healthy} chunks (clean; interactive mapping target)\n` +
       `  ${DATABASES.supabaseDocs}: ${PLANTED.supabaseDocs.healthy} chunks (clean)\n` +
+      `  ${DATABASES.metadataHealth}: ${PLANTED.metadataHealth.total} chunks ` +
+      `(${PLANTED.metadataHealth.missingMetadataRows} missing metadata, mixed filter types)\n` +
       `  ${DATABASES.guiriLike}: ${PLANTED.guiriLike.documentChunks} chunks ` +
       `(multi-table auto-detect target)`,
   );

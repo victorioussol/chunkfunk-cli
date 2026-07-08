@@ -37,7 +37,12 @@ export const PLANTED = {
   supabaseDocs: {
     healthy: 60,
   },
-  /** Fixture E mirrors a production-like DB with multiple vector-bearing tables. */
+  /** Fixture E proves metadata architecture findings against real Postgres rows. */
+  metadataHealth: {
+    total: 40,
+    missingMetadataRows: 12,
+  },
+  /** Fixture F mirrors a production-like DB with multiple vector-bearing tables. */
   guiriLike: {
     documentChunks: 150,
     internalChunks: 8,
@@ -51,6 +56,7 @@ export const DIMS = {
   llamaindexOffDim: 1536,
   custom: 1024,
   supabaseDocs: 1536,
+  metadataHealth: 1536,
   guiriLikeCurrent: 1536,
   guiriLikeNext: 3072,
 } as const;

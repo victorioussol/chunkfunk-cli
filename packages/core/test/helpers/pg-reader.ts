@@ -17,6 +17,7 @@ import type {
 export class PgReader implements DetectorReader {
   private readonly contentExpr: string;
   private readonly embeddingExpr: string;
+  private readonly metadataExpr: string | null;
   private readonly updatedAtExpr: string | null;
 
   constructor(
@@ -30,6 +31,7 @@ export class PgReader implements DetectorReader {
     }
     this.contentExpr = content;
     this.embeddingExpr = embedding;
+    this.metadataExpr = buildColumnExpr(mapping, "metadata");
     this.updatedAtExpr = buildColumnExpr(mapping, "updatedAt");
   }
 
@@ -51,11 +53,13 @@ export class PgReader implements DetectorReader {
 
   async *streamChunks(options?: { maxChunks?: number }): AsyncIterable<ChunkRecord> {
     const limit = options?.maxChunks ? `limit ${Number(options.maxChunks)}` : "";
+    const metadata = this.metadataExpr ? `${this.metadataExpr}` : "null";
     const updatedAt = this.updatedAtExpr ? `${this.updatedAtExpr}` : "null";
     const sql = `
       select ctid::text as ref,
              ${this.contentExpr} as content,
              vector_dims(${this.embeddingExpr}) as dims,
+             ${metadata} as metadata,
              ${updatedAt} as updated_at
       from ${this.table}
       order by ctid
@@ -63,12 +67,15 @@ export class PgReader implements DetectorReader {
     const result = await this.client.query(sql);
     for (const row of result.rows) {
       const content: string = row.content ?? "";
+      const metadataValue = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+        ? row.metadata
+        : null;
       yield {
         ref: row.ref,
         contentHash: hashContent(content),
         contentSample: content.slice(0, 500),
         length: normalizedLength(content),
-        metadata: null,
+        metadata: metadataValue,
         embeddingDims: row.dims === null ? null : Number(row.dims),
         updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
       };

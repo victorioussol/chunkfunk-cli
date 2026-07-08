@@ -4,6 +4,7 @@ import {
   buildColumnExpr,
   hashContent,
   normalizedLength,
+  type ArchitectureSignal,
   type ChunkRecord,
   type DetectorReader,
   type MappingV1,
@@ -218,6 +219,123 @@ export class UserDbReader implements DetectorReader {
     return (result.rowCount ?? 0) > 0;
   }
 
+  async inspectArchitecture(): Promise<ArchitectureSignal[]> {
+    const mapping = this.requireMapping();
+    const rawEmbeddingColumn = mapping.columns.embedding;
+    if (rawEmbeddingColumn === null || rawEmbeddingColumn.startsWith("meta:")) return [];
+
+    const tableParts = mapping.table.split(".");
+    const schema = tableParts.length > 1 ? tableParts[0] : "public";
+    const tableName = tableParts.length > 1 ? tableParts.slice(1).join(".") : mapping.table;
+    const embeddingColumn = rawEmbeddingColumn.split(".").at(-1) ?? rawEmbeddingColumn;
+
+    const indexInfo = await this.pool.query<{
+      estimated_rows: string;
+      index_name: string | null;
+      index_method: string | null;
+      columns: string[] | null;
+      index_def: string | null;
+    }>(
+      `select greatest(tbl.reltuples, 0)::bigint as estimated_rows,
+              idx.relname as index_name,
+              am.amname as index_method,
+              array_remove(array_agg(att.attname order by key.ord), null) as columns,
+              pg_get_indexdef(idx.oid) as index_def
+       from pg_class tbl
+       join pg_namespace ns on ns.oid = tbl.relnamespace
+       left join pg_index i on i.indrelid = tbl.oid
+       left join pg_class idx on idx.oid = i.indexrelid
+       left join pg_am am on am.oid = idx.relam
+       left join lateral unnest(i.indkey) with ordinality as key(attnum, ord) on true
+       left join pg_attribute att on att.attrelid = tbl.oid and att.attnum = key.attnum
+       where ns.nspname = $1 and tbl.relname = $2 and tbl.relkind in ('r', 'p')
+       group by tbl.reltuples, idx.oid, idx.relname, am.amname
+       order by idx.relname`,
+      [schema, tableName],
+    );
+
+    const estimatedRows = Math.max(
+      0,
+      ...indexInfo.rows.map((row) => Number(row.estimated_rows)),
+    );
+    const indexes = indexInfo.rows.filter((row) => row.index_name !== null);
+    const vectorIndexes = indexes.filter((row) => row.columns?.includes(embeddingColumn));
+    const approxVectorIndexes = vectorIndexes.filter((row) => row.index_method === "hnsw" || row.index_method === "ivfflat");
+
+    const signals: ArchitectureSignal[] = [];
+    if (approxVectorIndexes.length === 0 && estimatedRows >= 100) {
+      const severity = estimatedRows >= 1_000 ? "warning" : "info";
+      signals.push({
+        severity,
+        title:
+          severity === "warning"
+            ? "Mapped embedding column has no approximate vector index"
+            : "Mapped embedding column has no approximate vector index yet",
+        evidence: {
+          table: mapping.table,
+          embeddingColumn,
+          estimatedRows,
+          existingIndexMethods: [...new Set(vectorIndexes.map((row) => row.index_method).filter(Boolean))],
+        },
+        suggestedRepair: {
+          kind: "add_vector_index",
+          description: "Add an HNSW or IVFFlat index when this table is large enough for approximate vector search.",
+        },
+        affectedCount: 1,
+      });
+    }
+
+    const candidate = (await this.listCandidateTables()).find((table) => table.qualified === mapping.table);
+    const extraVectorColumns = candidate?.vectorColumns.filter((column) => column !== embeddingColumn) ?? [];
+    if (extraVectorColumns.length > 0) {
+      signals.push({
+        severity: "info",
+        title: "Mapped table has multiple vector columns",
+        evidence: {
+          table: mapping.table,
+          mappedEmbeddingColumn: embeddingColumn,
+          otherVectorColumns: extraVectorColumns,
+        },
+        suggestedRepair: {
+          kind: "verify_embedding_column",
+          description: "Verify the mapped embedding column is the one used by production retrieval, especially after embedding-model migrations.",
+        },
+        affectedCount: extraVectorColumns.length,
+      });
+    }
+
+    const approxIndexesOnOtherVectorColumns = indexes.filter((row) => {
+      const cols = row.columns ?? [];
+      return (
+        (row.index_method === "hnsw" || row.index_method === "ivfflat") &&
+        !cols.includes(embeddingColumn) &&
+        cols.some((column) => extraVectorColumns.includes(column))
+      );
+    });
+    if (approxIndexesOnOtherVectorColumns.length > 0 && approxVectorIndexes.length === 0) {
+      signals.push({
+        severity: "warning",
+        title: "Vector index exists on a different embedding column",
+        evidence: {
+          table: mapping.table,
+          mappedEmbeddingColumn: embeddingColumn,
+          indexedVectorColumns: approxIndexesOnOtherVectorColumns.map((row) => ({
+            index: row.index_name,
+            method: row.index_method,
+            columns: row.columns ?? [],
+          })),
+        },
+        suggestedRepair: {
+          kind: "verify_embedding_index",
+          description: "Verify the mapped embedding column and retrieval index agree before trusting production search behavior.",
+        },
+        affectedCount: approxIndexesOnOtherVectorColumns.length,
+      });
+    }
+
+    return signals;
+  }
+
   async *streamChunks(options?: { maxChunks?: number }): AsyncIterable<ChunkRecord> {
     const mapping = this.requireMapping();
     const contentExpr = this.mappedExpr("content");
@@ -226,6 +344,7 @@ export class UserDbReader implements DetectorReader {
       throw new Error("mapping is missing content or embedding");
     }
     const updatedAtExpr = this.mappedExpr("updatedAt") ?? "null";
+    const metadataExpr = this.mappedExpr("metadata") ?? "null";
     const table = quoteIdent(mapping.table);
 
     const max = options?.maxChunks;
@@ -244,7 +363,8 @@ export class UserDbReader implements DetectorReader {
     const sql = `select ctid::text as ref,
                         ${contentExpr} as content,
                         vector_dims(${embeddingExpr}) as dims,
-                        ${updatedAtExpr} as updated_at
+                        ${updatedAtExpr} as updated_at,
+                        ${metadataExpr} as metadata
                  from ${table}
                  ${ordering}
                  ${limitClause}`;
@@ -257,14 +377,18 @@ export class UserDbReader implements DetectorReader {
         content: string | null;
         dims: number | null;
         updated_at: Date | string | null;
+        metadata: unknown;
       }>) {
         const content = row.content ?? "";
+        const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+          ? row.metadata as ChunkRecord["metadata"]
+          : null;
         yield {
           ref: row.ref,
           contentHash: hashContent(content),
           contentSample: content.slice(0, 500),
           length: normalizedLength(content),
-          metadata: null,
+          metadata,
           embeddingDims: row.dims === null ? null : Number(row.dims),
           updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
         };

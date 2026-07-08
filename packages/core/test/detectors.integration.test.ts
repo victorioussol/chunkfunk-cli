@@ -75,6 +75,19 @@ const MAPPINGS: Record<string, MappingV1> = {
       updatedAt: null,
     },
   },
+  fixture_metadata_health: {
+    version: 1,
+    dialect: "pgvector",
+    table: "public.metadata_documents",
+    columns: {
+      content: "content",
+      embedding: "embedding",
+      metadata: "metadata",
+      documentId: null,
+      sourceUrl: "meta:metadata.source",
+      updatedAt: "created_at",
+    },
+  },
 };
 
 describe.skipIf(!BASE)("detectors vs fixtures", () => {
@@ -104,12 +117,14 @@ describe.skipIf(!BASE)("detectors vs fixtures", () => {
   let llamaindex: Awaited<ReturnType<typeof runHeuristicDetectors>>;
   let custom: Awaited<ReturnType<typeof runHeuristicDetectors>>;
   let supabaseDocs: Awaited<ReturnType<typeof runHeuristicDetectors>>;
+  let metadataHealth: Awaited<ReturnType<typeof runHeuristicDetectors>>;
 
   beforeAll(async () => {
     langchain = (await run("fixture_langchain")).result;
     llamaindex = (await run("fixture_llamaindex")).result;
     custom = (await run("fixture_custom")).result;
     supabaseDocs = (await run("fixture_supabase_docs")).result;
+    metadataHealth = (await run("fixture_metadata_health")).result;
   }, 120_000);
 
   afterAll(async () => {
@@ -183,6 +198,23 @@ describe.skipIf(!BASE)("detectors vs fixtures", () => {
       expect(supabaseDocs.stats.riskyCritical).toBe(0);
       expect(supabaseDocs.stats.exactDuplicateGroups).toBe(0);
       expect(supabaseDocs.stats.nearDuplicatePairs).toBe(0);
+    });
+  });
+
+  describe("fixture_metadata_health (metadata architecture)", () => {
+    it("flags sparse metadata and mixed filter value types without exposing values", () => {
+      expect(
+        metadataHealth.findings.find((f) => f.title === "Metadata is missing on many chunks")?.severity,
+      ).toBe("warning");
+      expect(
+        metadataHealth.findings.find((f) => f.title === "Metadata filter fields use mixed value types")?.severity,
+      ).toBe("warning");
+      const serialized = JSON.stringify(metadataHealth.findings);
+      expect(serialized).toContain("tenant_id");
+      expect(serialized).not.toContain("tenant-a");
+      expect(serialized).not.toContain("1001");
+      expect(metadataHealth.subscores.coverage).toBeLessThan(100);
+      expect(metadataHealth.score).toBeLessThan(100);
     });
   });
 });
