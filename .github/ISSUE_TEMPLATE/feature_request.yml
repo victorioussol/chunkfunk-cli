@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest an improvement or new workflow.
+title: "[Idea]: "
+labels: ["enhancement", "needs triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Start with the builder pain, not the implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would a good solution look like?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Schema detection
+        - Scanner findings
+        - HTML report
+        - CLI output
+        - Privacy or telemetry
+        - Docs
+        - Developer experience
+        - Other
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Project boundaries
+      options:
+        - label: This can work without writing to a user's database.
+          required: true
+        - label: This does not require sending private document or chunk text to ChunkFunk.
+          required: true
