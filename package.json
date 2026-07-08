@@ -34,6 +34,7 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:smoke": "node scripts/synthetic-cli-smoke.mjs",
     "fixtures:up": "npm run up --workspace @chunkfunk/fixtures",
     "fixtures:down": "npm run down --workspace @chunkfunk/fixtures",
     "fixtures:seed": "npm run seed --workspace @chunkfunk/fixtures",
