@@ -1,0 +1,22 @@
+name: Documentation issue
+description: Report confusing, missing, or incorrect documentation.
+title: "[Docs]: "
+labels: ["documentation", "good first issue"]
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Page or file
+      placeholder: "README.md, TELEMETRY.md, CONTRIBUTING.md"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is confusing or missing?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement

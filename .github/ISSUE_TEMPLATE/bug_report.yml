@@ -1,0 +1,54 @@
+name: Bug report
+description: Something broke or behaved differently than expected.
+title: "[Bug]: "
+labels: ["bug", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. Please remove connection strings, tokens, secrets, private documents, and customer data before submitting.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Tell us what broke in plain language.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run ...
+        2. See ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: ChunkFunk version
+      placeholder: "0.1.0"
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      placeholder: "node --version"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized output or logs
+      description: Do not paste real credentials, tokens, secrets, documents, or customer data.
+      render: shell
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed connection strings, tokens, secrets, private documents, and customer data.
+          required: true

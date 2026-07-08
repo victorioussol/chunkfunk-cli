@@ -2,6 +2,8 @@
 
 ChunkFunk is a read-only CLI that scans an existing Postgres/pgvector RAG database and reports what looks stale, duplicated, or broken. It runs locally, does not need an account, and does not write to your database.
 
+ChunkFunk is open source because RAG maintenance should be inspectable, practical, and safe for the builders who depend on it. Contributions are welcome, especially real-world schema reports, fixtures, docs, and small improvements that make the scanner easier to trust.
+
 ## 10-minute quickstart
 
 ```bash
@@ -95,3 +97,18 @@ FIXTURES_PG_URL="postgresql://postgres:postgres@127.0.0.1:55433/postgres" npm te
 ```
 
 Do not publish from automation. Use `npm publish --dry-run` for review, then publish manually.
+
+## Contributing
+
+New contributors are welcome. Good first contributions include schema reports, fixtures, docs, clearer error messages, and small tests around real RAG layouts.
+
+Start here:
+
+- [docs/first-contribution.md](docs/first-contribution.md) gives new contributors a small first path.
+- [CONTRIBUTING.md](CONTRIBUTING.md) explains how to make a useful pull request.
+- [SUPPORT.md](SUPPORT.md) explains where to ask questions or report problems.
+- [SECURITY.md](SECURITY.md) explains how to report sensitive issues safely.
+- [GOVERNANCE.md](GOVERNANCE.md) explains how project decisions and reviews work.
+- [docs/maintainer-review-guide.md](docs/maintainer-review-guide.md) is Victor's review checklist.
+
+Victor Solares is the maintainer and final reviewer. The review bar is practical: keep the tool read-only, protect private data, solve one clear problem, and make the result easier for builders to trust.

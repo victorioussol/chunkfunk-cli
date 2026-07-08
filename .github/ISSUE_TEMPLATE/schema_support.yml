@@ -1,0 +1,60 @@
+name: Schema support
+description: Help ChunkFunk detect another RAG database layout.
+title: "[Schema]: "
+labels: ["schema support", "help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Schema reports are one of the best ways to improve ChunkFunk. Please share structure, not private data.
+  - type: input
+    id: framework
+    attributes:
+      label: Framework or tool
+      placeholder: "LangChain, LlamaIndex, custom pgvector table, etc."
+    validations:
+      required: true
+  - type: textarea
+    id: schema
+    attributes:
+      label: Sanitized table shape
+      description: Include table and column names/types only. Do not include row data.
+      render: sql
+      placeholder: |
+        create table documents (
+          id uuid,
+          content text,
+          embedding vector(1536),
+          metadata jsonb,
+          updated_at timestamptz
+        );
+    validations:
+      required: true
+  - type: input
+    id: content-column
+    attributes:
+      label: Which column contains chunk text?
+  - type: input
+    id: embedding-column
+    attributes:
+      label: Which column contains embeddings?
+  - type: input
+    id: metadata-column
+    attributes:
+      label: Which column contains metadata?
+  - type: input
+    id: timestamp-column
+    attributes:
+      label: Which column tracks freshness or updates?
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything unusual?
+      description: Mention joins, JSON metadata paths, or multiple vector tables.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I did not include private row data, customer data, credentials, tokens, or secrets.
+          required: true
