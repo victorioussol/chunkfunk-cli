@@ -32,6 +32,7 @@ const DATABASES = {
   llamaindex: "fixture_llamaindex",
   custom: "fixture_custom",
   supabaseDocs: "fixture_supabase_docs",
+  guiriLike: "fixture_guiri_like",
 } as const;
 
 function dbUrl(database: string): string {
@@ -286,6 +287,115 @@ async function seedSupabaseDocs(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Fixture E — production-like multi-table pgvector layout. The real chunk table
+// should win over cache/internal vector tables without prompting.
+// ---------------------------------------------------------------------------
+async function seedGuiriLike(): Promise<void> {
+  await withClient(dbUrl(DATABASES.guiriLike), async (client) => {
+    await resetSchema(client);
+    await client.query(`
+      create table document_chunks (
+        id uuid primary key default gen_random_uuid(),
+        content text not null,
+        embedding vector(${DIMS.guiriLikeCurrent}),
+        source_id uuid,
+        source_url text,
+        source_type text,
+        chunk_index integer,
+        metadata jsonb,
+        created_at timestamp without time zone default now(),
+        embedding_3072 vector(${DIMS.guiriLikeNext}),
+        quality_flags text[],
+        quarantined boolean default false,
+        content_hash text
+      );
+
+      create table embedding_cache (
+        text_hash text primary key,
+        embedding vector(${DIMS.guiriLikeCurrent}) not null,
+        model text not null,
+        created_at timestamptz not null default now(),
+        last_used_at timestamptz not null default now(),
+        usage_count integer not null default 1,
+        text_length integer not null,
+        embedding_3072 vector(${DIMS.guiriLikeNext})
+      );
+
+      create table chunkfunk_chunks (
+        id uuid primary key default gen_random_uuid(),
+        workspace_id uuid not null default gen_random_uuid(),
+        source_id uuid not null default gen_random_uuid(),
+        document_id uuid,
+        title text not null,
+        path text not null,
+        text text not null,
+        quality integer not null default 100,
+        warnings text[] not null default '{}',
+        duplicate boolean not null default false,
+        embedding vector(${DIMS.guiriLikeCurrent}),
+        metadata jsonb not null default '{}',
+        created_at timestamptz not null default now()
+      );
+
+      create table sprigkeeper_chunks (like chunkfunk_chunks including all);
+    `);
+
+    const rng = mulberry32(0x67756972);
+    await client.query("begin");
+    for (let i = 0; i < PLANTED.guiriLike.documentChunks; i += 1) {
+      await client.query(
+        `insert into document_chunks
+          (content, embedding, source_url, source_type, chunk_index, metadata, embedding_3072, content_hash)
+         values ($1, $2, $3, $4, $5, $6, $7, md5($1))`,
+        [
+          healthyChunk(i),
+          toVectorLiteral(unitVector(DIMS.guiriLikeCurrent, rng)),
+          sourceUrl(i),
+          "official",
+          i,
+          JSON.stringify({ topicIndex: i }),
+          toVectorLiteral(unitVector(DIMS.guiriLikeNext, rng)),
+        ],
+      );
+    }
+
+    for (let i = 0; i < PLANTED.guiriLike.cacheRows; i += 1) {
+      await client.query(
+        `insert into embedding_cache
+          (text_hash, embedding, model, text_length, embedding_3072)
+         values ($1, $2, $3, $4, $5)`,
+        [
+          `hash-${i}`,
+          toVectorLiteral(unitVector(DIMS.guiriLikeCurrent, rng)),
+          "text-embedding-3-small",
+          512,
+          toVectorLiteral(unitVector(DIMS.guiriLikeNext, rng)),
+        ],
+      );
+    }
+
+    for (const table of ["chunkfunk_chunks", "sprigkeeper_chunks"]) {
+      for (let i = 0; i < PLANTED.guiriLike.internalChunks; i += 1) {
+        await client.query(
+          `insert into ${table}
+            (title, path, text, embedding, metadata)
+           values ($1, $2, $3, $4, $5)`,
+          [
+            `Internal smoke chunk ${i}`,
+            `/internal/${i}`,
+            healthyChunk(500 + i),
+            toVectorLiteral(unitVector(DIMS.guiriLikeCurrent, rng)),
+            JSON.stringify({ internal: true }),
+          ],
+        );
+      }
+    }
+    await client.query("commit");
+    await client.query("analyze");
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Self-check — fail loudly if the seeded corpus drifts from README's contract.
 // ---------------------------------------------------------------------------
 async function scalar(client: pg.Client, sql: string): Promise<number> {
@@ -383,6 +493,24 @@ async function verify(): Promise<void> {
       throw new Error(`supabase-docs total ${total} !== ${PLANTED.supabaseDocs.healthy}`);
     }
   });
+
+  await withClient(dbUrl(DATABASES.guiriLike), async (client) => {
+    const total = await scalar(client, "select count(*) from document_chunks");
+    if (total !== PLANTED.guiriLike.documentChunks) {
+      throw new Error(`guiri-like document_chunks total ${total} !== ${PLANTED.guiriLike.documentChunks}`);
+    }
+    const cache = await scalar(client, "select count(*) from embedding_cache");
+    if (cache !== PLANTED.guiriLike.cacheRows) {
+      throw new Error(`guiri-like embedding_cache total ${cache} !== ${PLANTED.guiriLike.cacheRows}`);
+    }
+    const internal = await scalar(
+      client,
+      "select (select count(*) from chunkfunk_chunks) + (select count(*) from sprigkeeper_chunks) as count",
+    );
+    if (internal !== PLANTED.guiriLike.internalChunks * 2) {
+      throw new Error(`guiri-like internal chunks ${internal} !== ${PLANTED.guiriLike.internalChunks * 2}`);
+    }
+  });
 }
 
 async function main(): Promise<void> {
@@ -391,6 +519,7 @@ async function main(): Promise<void> {
   await seedLlamaindex();
   await seedCustom();
   await seedSupabaseDocs();
+  await seedGuiriLike();
   await verify();
   console.log(
     `Seeded fixtures:\n` +
@@ -401,7 +530,9 @@ async function main(): Promise<void> {
       `  ${DATABASES.llamaindex}: ${DERIVED.llamaindexTotal} chunks ` +
       `(${PLANTED.llamaindex.mixedDimRows} off-dim, ${PLANTED.llamaindex.nullEmbeddingRows} null embeddings)\n` +
       `  ${DATABASES.custom}: ${PLANTED.custom.healthy} chunks (clean; interactive mapping target)\n` +
-      `  ${DATABASES.supabaseDocs}: ${PLANTED.supabaseDocs.healthy} chunks (clean)`,
+      `  ${DATABASES.supabaseDocs}: ${PLANTED.supabaseDocs.healthy} chunks (clean)\n` +
+      `  ${DATABASES.guiriLike}: ${PLANTED.guiriLike.documentChunks} chunks ` +
+      `(multi-table auto-detect target)`,
   );
 }
 

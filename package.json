@@ -1,6 +1,6 @@
 {
   "name": "chunkfunk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Read-only CLI scanner for stale, duplicated, or broken RAG database chunks.",
   "type": "module",
   "license": "MIT",

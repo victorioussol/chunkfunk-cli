@@ -1,7 +1,7 @@
 # @chunkfunk/fixtures
 
 Dockerized Postgres + pgvector databases seeded with **planted problems**, used by
-the PR-03 detector tests and PR-04/PR-05 introspection/scan tests.
+detector, introspection, scan, and packaged-smoke tests.
 
 > ⚠️ **The counts below are a contract.** PR-03's detector tests assert against
 > these exact numbers. Do not change a fixture without updating this table and the
@@ -11,7 +11,7 @@ the PR-03 detector tests and PR-04/PR-05 introspection/scan tests.
 
 ```bash
 npm run fixtures:up     # start Postgres+pgvector (host port 55432), wait for healthy
-npm run fixtures:seed   # create + seed the four fixture databases (idempotent)
+npm run fixtures:seed   # create + seed the fixture databases (idempotent)
 npm run fixtures:down   # stop and remove the container + volume
 ```
 
@@ -32,6 +32,7 @@ Each fixture is its own database so introspection sees one RAG system per connec
 | `fixture_llamaindex` | `llamaindex-pgvector` (auto) | `data_embeddings` | **mixed** 768 / 1536 | none |
 | `fixture_custom` | interactive mapping | `kb_entries` (two long text columns) | 1024 | `modified_at` |
 | `fixture_supabase_docs` | `supabase-docs-tutorial` (auto) | `documents` | 1536 | none |
+| `fixture_guiri_like` | `generic-single-table` (auto-ranked) | `document_chunks`, `embedding_cache`, `chunkfunk_chunks`, `sprigkeeper_chunks` | 1536 + 3072 | `created_at` |
 
 ## Planted problems (exact counts)
 
@@ -67,6 +68,22 @@ defeat auto-detection so PR-04 exercises the interactive column picker.
 
 No planted problems. Second auto-detect target for PR-04; `content` + `embedding`
 + `metadata` match the `supabase-docs-tutorial` recipe directly.
+
+### `fixture_guiri_like` — multi-table auto-detect (150 primary chunks)
+
+Production-like schema used to prove ChunkFunk can pick the actual chunk table
+when several vector-bearing tables exist:
+
+| Table | Purpose |
+|---|---|
+| `document_chunks` | Primary RAG chunks; `content`, `embedding`, `embedding_3072`, `metadata`, source columns |
+| `embedding_cache` | Embedding cache; vector columns but no chunk content column |
+| `chunkfunk_chunks` | Internal/legacy tool table; vector + text but should be deprioritized |
+| `sprigkeeper_chunks` | Internal/legacy tool table; vector + text but should be deprioritized |
+
+The expected auto-detected mapping is `public.document_chunks` with `content` +
+`embedding`; ambiguous bespoke schemas should still fall back to the interactive
+picker.
 
 ## Requirements
 

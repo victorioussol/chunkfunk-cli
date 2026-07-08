@@ -263,6 +263,19 @@ if (!fixtureBaseUrl) {
     assert(report.totals.chunks === 60, `expected 60 chunks, got ${report.totals.chunks}`);
     assert(report.stack.mapping.table === "public.documents", "expected Supabase docs mapping");
   });
+
+  await step("auto-ranks Guiri-like multi-table fixture", async () => {
+    const dir = join(tempRoot, "guiri-like");
+    await mkdir(dir, { recursive: true });
+    const env = cleanEnv({ DATABASE_URL: databaseUrl("fixture_guiri_like") });
+    const result = await run(chunkfunkBin, ["scan", "--json", "--yes"], { cwd: dir, env });
+    assert(result.code === 0, result.stderr || result.stdout);
+    const report = parseJson(result.stdout, "guiri-like scan");
+    assert(report.totals.chunks === 150, `expected 150 chunks, got ${report.totals.chunks}`);
+    assert(report.stack.mapping.table === "public.document_chunks", "expected document_chunks mapping");
+    assert(report.stack.mapping.columns.content === "content", "expected content column");
+    assert(report.stack.mapping.columns.embedding === "embedding", "expected embedding column");
+  });
 }
 
 const failed = results.filter((result) => result.ok === false);

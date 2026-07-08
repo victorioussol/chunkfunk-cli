@@ -17,6 +17,7 @@ class UnmappableReader {
         { name: "embedding", udtName: "vector", dataType: "USER-DEFINED" },
       ],
       vectorColumns: ["embedding"],
+      estimatedRows: 100,
     },
   ]);
   sampleJsonKeys = vi.fn(async () => []);

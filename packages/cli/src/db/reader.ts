@@ -26,6 +26,7 @@ export interface CandidateTable {
   qualified: string;
   columns: ColumnInfo[];
   vectorColumns: string[];
+  estimatedRows: number | null;
 }
 
 /**
@@ -88,6 +89,24 @@ export class UserDbReader implements DetectorReader {
        where table_schema not in ('pg_catalog', 'information_schema')
        order by table_schema, table_name, ordinal_position`,
     );
+    const estimates = await this.pool.query<{
+      table_schema: string;
+      table_name: string;
+      estimated_rows: string;
+    }>(
+      `select n.nspname as table_schema,
+              c.relname as table_name,
+              greatest(c.reltuples, 0)::bigint as estimated_rows
+       from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+       where c.relkind in ('r', 'p')`,
+    );
+    const estimatedRowsByTable = new Map(
+      estimates.rows.map((row) => [
+        `${row.table_schema}.${row.table_name}`,
+        Number(row.estimated_rows),
+      ]),
+    );
 
     const byTable = new Map<string, CandidateTable>();
     for (const row of result.rows) {
@@ -100,6 +119,7 @@ export class UserDbReader implements DetectorReader {
           qualified: key,
           columns: [],
           vectorColumns: [],
+          estimatedRows: estimatedRowsByTable.get(key) ?? null,
         };
         byTable.set(key, table);
       }
