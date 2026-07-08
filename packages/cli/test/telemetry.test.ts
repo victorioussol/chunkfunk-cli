@@ -93,6 +93,7 @@ class HealthyReader {
         { name: "metadata", udtName: "jsonb", dataType: "jsonb" },
       ],
       vectorColumns: ["embedding"],
+      estimatedRows: 100,
     },
   ]);
   sampleJsonKeys = vi.fn(async () => []);

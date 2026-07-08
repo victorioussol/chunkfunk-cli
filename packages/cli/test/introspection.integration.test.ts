@@ -68,6 +68,33 @@ describe.skipIf(!BASE)("introspection vs fixtures", () => {
     expect(result.mapping.columns.content).toBe("content");
   });
 
+  it("auto-ranks the Guiri-like primary chunk table over cache/internal tables", async () => {
+    const result = await introspectFixture("fixture_guiri_like", {
+      yes: true,
+      prompts: throwingPrompts,
+    });
+    expect(result.recipeId).toBe("generic-single-table");
+    expect(result.frameworkGuess).toBe("custom");
+    expect(result.mapping.table).toBe("public.document_chunks");
+    expect(result.mapping.columns.content).toBe("content");
+    expect(result.mapping.columns.embedding).toBe("embedding");
+    expect(result.mapping.columns.metadata).toBe("metadata");
+    expect(result.mapping.columns.documentId).toBe("source_id");
+    expect(result.mapping.columns.sourceUrl).toBe("source_url");
+    expect(result.mapping.columns.updatedAt).toBe("created_at");
+    expect(result.embeddingDims).toBe(1536);
+  });
+
+  it("does not guess when a bespoke schema has ambiguous long text columns", async () => {
+    await expect(
+      introspectFixture("fixture_custom", {
+        yes: true,
+        prompts: throwingPrompts,
+        allowInteractive: false,
+      }),
+    ).rejects.toThrow(/Cannot map this database non-interactively/i);
+  });
+
   it("completes fixture_custom via the interactive column picker", async () => {
     const prompts = new ScriptedPrompts({
       select: ["public.kb_entries", "vec", "body_text"],

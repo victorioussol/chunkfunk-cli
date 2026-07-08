@@ -37,6 +37,12 @@ export const PLANTED = {
   supabaseDocs: {
     healthy: 60,
   },
+  /** Fixture E mirrors a production-like DB with multiple vector-bearing tables. */
+  guiriLike: {
+    documentChunks: 150,
+    internalChunks: 8,
+    cacheRows: 20,
+  },
 } as const;
 
 export const DIMS = {
@@ -45,6 +51,8 @@ export const DIMS = {
   llamaindexOffDim: 1536,
   custom: 1024,
   supabaseDocs: 1536,
+  guiriLikeCurrent: 1536,
+  guiriLikeNext: 3072,
 } as const;
 
 /** Derived totals, exported for README cross-checking and the seed self-check. */
