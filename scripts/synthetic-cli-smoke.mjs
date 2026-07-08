@@ -233,7 +233,11 @@ if (!fixtureBaseUrl) {
     const result = await run(chunkfunkBin, ["--show-telemetry"], { cwd: dir, env });
     assert(result.code === 0, result.stderr || result.stdout);
     const payload = parseJson(result.stdout, "telemetry");
-    assert(payload.version === 1, "expected TelemetryV1");
+    assert(typeof payload.fingerprintHash === "string", "telemetry should include fingerprintHash");
+    assert(typeof payload.frameworkGuess === "string", "telemetry should include frameworkGuess");
+    assert(typeof payload.healthScore === "number", "telemetry should include healthScore");
+    assert(typeof payload.mappingShape?.id === "string", "telemetry should include mappingShape.id");
+    assert(payload.cliVersion === packageJson.version, "telemetry should include the installed CLI version");
     assert(!result.stdout.includes("postgresql://"), "telemetry must not include connection strings");
     assert(!result.stdout.includes("fixture_langchain"), "telemetry must not include database names");
   });
