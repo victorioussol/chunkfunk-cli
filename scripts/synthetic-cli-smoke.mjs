@@ -351,6 +351,21 @@ if (!fixtureBaseUrl) {
     );
   });
 
+  await step("auto-detects generic body/properties pgvector fixture", async () => {
+    const dir = join(tempRoot, "generic-body");
+    await mkdir(dir, { recursive: true });
+    const env = cleanEnv({ DATABASE_URL: databaseUrl("fixture_generic_body_chunks") });
+    const result = await run(chunkfunkBin, ["scan", "--json", "--yes"], { cwd: dir, env });
+    assert(result.code === 0, result.stderr || result.stdout);
+    const report = parseJson(result.stdout, "generic-body scan");
+    assert(report.totals.chunks === 72, `expected 72 chunks, got ${report.totals.chunks}`);
+    assert(report.stack.mapping.table === "public.knowledge_chunks", "expected knowledge_chunks mapping");
+    assert(report.stack.mapping.columns.content === "body", "expected body content column");
+    assert(report.stack.mapping.columns.metadata === "properties", "expected properties metadata column");
+    assert(report.stack.mapping.columns.sourceUrl === "source_url", "expected source_url locator column");
+    assert(report.stack.mapping.columns.updatedAt === "updated_at", "expected updated_at timestamp column");
+  });
+
   await step("reports an empty ingested table clearly", async () => {
     const dir = join(tempRoot, "empty-documents");
     await mkdir(dir, { recursive: true });
