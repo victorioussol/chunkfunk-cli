@@ -41,8 +41,13 @@ export const PLANTED = {
   metadataHealth: {
     total: 40,
     missingMetadataRows: 12,
+    largeChunkRows: 10,
   },
-  /** Fixture F mirrors a production-like DB with multiple vector-bearing tables. */
+  /** Fixture F proves failed ingestion can still produce a useful report. */
+  emptyDocs: {
+    total: 0,
+  },
+  /** Fixture G mirrors a production-like DB with multiple vector-bearing tables. */
   guiriLike: {
     documentChunks: 150,
     internalChunks: 8,
@@ -57,6 +62,7 @@ export const DIMS = {
   custom: 1024,
   supabaseDocs: 1536,
   metadataHealth: 1536,
+  emptyDocs: 1536,
   guiriLikeCurrent: 1536,
   guiriLikeNext: 3072,
 } as const;

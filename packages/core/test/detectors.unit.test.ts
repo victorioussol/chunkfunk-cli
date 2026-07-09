@@ -220,6 +220,13 @@ describe("embedding-integrity", () => {
 });
 
 describe("architecture", () => {
+  it("reports an empty mapped table as a critical ingestion failure", async () => {
+    const result = await runArchitecture(ctx([]));
+    expect(result.emptyTable).toBe(true);
+    expect(result.coverageScore).toBe(0);
+    expect(result.findings.find((f) => f.title === "Mapped chunk table is empty")?.severity).toBe("critical");
+  });
+
   it("flags missing metadata coverage and mixed metadata value types without exposing values", async () => {
     const chunks: MockChunk[] = [
       { ref: "a", content: LONG, metadata: { source: "docs", tenant_id: "team-a", score: 1 } },
@@ -238,6 +245,43 @@ describe("architecture", () => {
     expect(result.coverageScore).toBeLessThan(100);
     expect(JSON.stringify(mixed?.evidence)).toContain("sha256:");
     expect(JSON.stringify(mixed?.evidence)).not.toContain("score");
+    expect(JSON.stringify(result.findings)).not.toContain("team-a");
+  });
+
+  it("flags oversized chunks without exposing chunk text", async () => {
+    const huge = `${LONG} ${"Long supporting paragraph. ".repeat(180)}`;
+    const chunks: MockChunk[] = [];
+    for (let i = 0; i < 10; i += 1) {
+      chunks.push({
+        ref: `large-${i}`,
+        content: huge,
+        metadata: { source: "docs" },
+      });
+    }
+    for (let i = 0; i < 30; i += 1) {
+      chunks.push({
+        ref: `ok-${i}`,
+        content: LONG,
+        metadata: { source: "docs" },
+      });
+    }
+    const result = await runArchitecture(ctx(chunks));
+    const oversized = result.findings.find((f) => f.title === "Many chunks are very large");
+    expect(oversized?.severity).toBe("warning");
+    expect(oversized?.affectedCount).toBe(10);
+    expect(result.largeChunkPct).toBe(25);
+    expect(JSON.stringify(oversized)).not.toContain("Long supporting paragraph");
+  });
+
+  it("flags missing source/citation locators without exposing metadata values", async () => {
+    const chunks: MockChunk[] = [
+      { ref: "a", content: LONG, metadata: { tenant_id: "team-a" } },
+      { ref: "b", content: LONG, metadata: { tenant_id: "team-a" } },
+    ];
+    const result = await runArchitecture(ctx(chunks));
+    const citation = result.findings.find((f) => f.title === "No source or citation locator was found");
+    expect(citation?.severity).toBe("warning");
+    expect(JSON.stringify(citation)).toContain("sourceLocatorRows");
     expect(JSON.stringify(result.findings)).not.toContain("team-a");
   });
 

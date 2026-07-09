@@ -33,6 +33,7 @@ const DATABASES = {
   custom: "fixture_custom",
   supabaseDocs: "fixture_supabase_docs",
   metadataHealth: "fixture_metadata_health",
+  emptyDocs: "fixture_empty_documents",
   guiriLike: "fixture_guiri_like",
 } as const;
 
@@ -307,6 +308,9 @@ async function seedMetadataHealth(): Promise<void> {
     const rng = mulberry32(0x4d455441);
     await client.query("begin");
     for (let i = 0; i < PLANTED.metadataHealth.total; i += 1) {
+      const content = i < PLANTED.metadataHealth.largeChunkRows
+        ? `${healthyChunk(i)} ${"Long supporting paragraph. ".repeat(180)}`
+        : healthyChunk(i);
       const metadata = i < PLANTED.metadataHealth.missingMetadataRows
         ? null
         : {
@@ -318,7 +322,7 @@ async function seedMetadataHealth(): Promise<void> {
         `insert into metadata_documents (content, embedding, metadata)
          values ($1, $2, $3)`,
         [
-          healthyChunk(i),
+          content,
           toVectorLiteral(unitVector(DIMS.metadataHealth, rng)),
           metadata === null ? null : JSON.stringify(metadata),
         ],
@@ -329,7 +333,25 @@ async function seedMetadataHealth(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Fixture F — production-like multi-table pgvector layout. The real chunk table
+// Fixture F — empty but valid Supabase-docs-shaped table. Used to prove failed
+// ingestion produces a clear report instead of a misleading clean scan.
+// ---------------------------------------------------------------------------
+async function seedEmptyDocs(): Promise<void> {
+  await withClient(dbUrl(DATABASES.emptyDocs), async (client) => {
+    await resetSchema(client);
+    await client.query(`
+      create table documents (
+        id bigint generated always as identity primary key,
+        content text not null,
+        embedding vector(${DIMS.emptyDocs}),
+        metadata jsonb
+      );
+    `);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Fixture G — production-like multi-table pgvector layout. The real chunk table
 // should win over cache/internal vector tables without prompting.
 // ---------------------------------------------------------------------------
 async function seedGuiriLike(): Promise<void> {
@@ -560,6 +582,20 @@ async function verify(): Promise<void> {
       "select count(distinct jsonb_typeof(metadata->'tenant_id')) from metadata_documents where metadata ? 'tenant_id'",
     );
     if (tenantTypes !== 2) throw new Error("metadata-health fixture must contain mixed tenant_id value types");
+    const large = await scalar(
+      client,
+      "select count(*) from metadata_documents where length(content) >= 4000",
+    );
+    if (large !== PLANTED.metadataHealth.largeChunkRows) {
+      throw new Error(`metadata-health large chunks ${large} !== ${PLANTED.metadataHealth.largeChunkRows}`);
+    }
+  });
+
+  await withClient(dbUrl(DATABASES.emptyDocs), async (client) => {
+    const total = await scalar(client, "select count(*) from documents");
+    if (total !== PLANTED.emptyDocs.total) {
+      throw new Error(`empty-docs total ${total} !== ${PLANTED.emptyDocs.total}`);
+    }
   });
 
   await withClient(dbUrl(DATABASES.guiriLike), async (client) => {
@@ -588,6 +624,7 @@ async function main(): Promise<void> {
   await seedCustom();
   await seedSupabaseDocs();
   await seedMetadataHealth();
+  await seedEmptyDocs();
   await seedGuiriLike();
   await verify();
   console.log(
@@ -601,7 +638,9 @@ async function main(): Promise<void> {
       `  ${DATABASES.custom}: ${PLANTED.custom.healthy} chunks (clean; interactive mapping target)\n` +
       `  ${DATABASES.supabaseDocs}: ${PLANTED.supabaseDocs.healthy} chunks (clean)\n` +
       `  ${DATABASES.metadataHealth}: ${PLANTED.metadataHealth.total} chunks ` +
-      `(${PLANTED.metadataHealth.missingMetadataRows} missing metadata, mixed filter types)\n` +
+      `(${PLANTED.metadataHealth.missingMetadataRows} missing metadata, ` +
+      `${PLANTED.metadataHealth.largeChunkRows} large chunks, mixed filter types)\n` +
+      `  ${DATABASES.emptyDocs}: ${PLANTED.emptyDocs.total} chunks (empty ingestion target)\n` +
       `  ${DATABASES.guiriLike}: ${PLANTED.guiriLike.documentChunks} chunks ` +
       `(multi-table auto-detect target)`,
   );

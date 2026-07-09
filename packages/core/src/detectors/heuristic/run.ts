@@ -34,6 +34,7 @@ export interface HeuristicRunResult {
     riskyWarning: number;
     nullEmbeddings: number;
     distinctEmbeddingDims: number[];
+    largeChunksPct: number;
     staleDocsPct: number | null;
   };
 }
@@ -70,7 +71,7 @@ export async function runHeuristicDetectors(
     freshness:
       freshness.staleDocsPct === null ? null : freshnessSubscore(freshness.staleDocsPct),
     duplication: duplicationSubscore(exact.corpusPct, near.estimatedCorpusPct),
-    quality: qualitySubscore(thin.corpusPct),
+    quality: architecture.emptyTable ? 0 : qualitySubscore(thin.corpusPct + architecture.largeChunkPct),
     risk: riskSubscore(risky.criticalCount, risky.warningCount),
     coverage: architecture.coverageScore,
   };
@@ -93,6 +94,7 @@ export async function runHeuristicDetectors(
       riskyWarning: risky.warningCount,
       nullEmbeddings: embedding.nullEmbeddings,
       distinctEmbeddingDims: embedding.distinctDims,
+      largeChunksPct: architecture.largeChunkPct,
       staleDocsPct: freshness.staleDocsPct,
     },
   };

@@ -280,6 +280,20 @@ if (!fixtureBaseUrl) {
     const titles = report.findings.map((finding) => finding.title);
     assert(titles.includes("Metadata is missing on many chunks"), "expected sparse metadata finding");
     assert(titles.includes("Metadata filter fields use mixed value types"), "expected mixed metadata type finding");
+    assert(titles.includes("Many chunks are very large"), "expected oversized chunk finding");
+  });
+
+  await step("reports an empty ingested table clearly", async () => {
+    const dir = join(tempRoot, "empty-documents");
+    await mkdir(dir, { recursive: true });
+    const env = cleanEnv({ DATABASE_URL: databaseUrl("fixture_empty_documents") });
+    const result = await run(chunkfunkBin, ["scan", "--json", "--yes"], { cwd: dir, env });
+    assert(result.code === 0, result.stderr || result.stdout);
+    const report = parseJson(result.stdout, "empty documents scan");
+    assert(report.totals.chunks === 0, `expected 0 chunks, got ${report.totals.chunks}`);
+    assert(report.stack.mapping.table === "public.documents", "expected documents mapping");
+    assert(report.findings.some((finding) => finding.title === "Mapped chunk table is empty"), "expected empty table finding");
+    assert(report.health.score < 80, "empty ingested table should not look healthy");
   });
 
   await step("auto-ranks Guiri-like multi-table fixture", async () => {

@@ -68,6 +68,17 @@ describe.skipIf(!BASE)("introspection vs fixtures", () => {
     expect(result.mapping.columns.content).toBe("content");
   });
 
+  it("auto-detects an empty conventional documents table", async () => {
+    const result = await introspectFixture("fixture_empty_documents", {
+      yes: true,
+      prompts: throwingPrompts,
+    });
+    expect(result.recipeId).toBe("supabase-docs-tutorial");
+    expect(result.mapping.table).toBe("public.documents");
+    expect(result.mapping.columns.content).toBe("content");
+    expect(result.mapping.columns.embedding).toBe("embedding");
+  });
+
   it("auto-detects fixture_metadata_health as a generic pgvector table", async () => {
     const result = await introspectFixture("fixture_metadata_health", {
       yes: true,

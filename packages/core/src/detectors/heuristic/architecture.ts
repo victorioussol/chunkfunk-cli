@@ -29,13 +29,30 @@ const COMMON_METADATA_KEYS = new Set([
   "lang",
 ]);
 
+const SOURCE_LOCATOR_KEYS = new Set([
+  "source",
+  "source_url",
+  "url",
+  "path",
+  "file",
+  "file_path",
+  "page_url",
+  "doc_id",
+  "document_id",
+  "source_id",
+]);
+
 const SPARSE_METADATA_WARNING_PCT = 20;
 const INCONSISTENT_KEY_MIN_ROWS = 10;
 const MIXED_TYPE_MIN_ROWS = 5;
+const LARGE_CHUNK_CHARS = 4_000;
+const LARGE_CHUNK_WARNING_PCT = 20;
 
 export interface ArchitectureResult {
   findings: FindingV1[];
   coverageScore: number | null;
+  largeChunkPct: number;
+  emptyTable: boolean;
 }
 
 function safeKey(key: string): string {
@@ -64,13 +81,23 @@ function metadataCoverageScore(missingPct: number, mixedTypeFieldCount: number):
   return Math.max(0, Math.round(100 - missingPct - mixedTypeFieldCount * 25));
 }
 
-async function runMetadataArchitecture(ctx: DetectorContext): Promise<{
+function percentile(sorted: number[], pct: number): number {
+  if (sorted.length === 0) return 0;
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil((pct / 100) * sorted.length) - 1));
+  return sorted[index];
+}
+
+async function runCorpusArchitecture(ctx: DetectorContext): Promise<{
   findings: FindingV1[];
   coverageScore: number | null;
+  largeChunkPct: number;
+  emptyTable: boolean;
 }> {
   const findings: FindingV1[] = [];
+  const hasMappedMetadata = ctx.mapping.columns.metadata !== null;
+  const hasMappedSourceLocator = ctx.mapping.columns.sourceUrl !== null || ctx.mapping.columns.documentId !== null;
 
-  if (ctx.mapping.columns.metadata === null) {
+  if (!hasMappedMetadata) {
     findings.push({
       type: "architecture",
       severity: "info",
@@ -85,18 +112,25 @@ async function runMetadataArchitecture(ctx: DetectorContext): Promise<{
       },
       affectedCount: 1,
     });
-    return { findings, coverageScore: null };
   }
 
   let scanned = 0;
   let missing = 0;
+  let sourceLocatorRows = 0;
+  let largeChunks = 0;
+  const lengths: number[] = [];
   const keyCounts = new Map<string, number>();
   const typeCountsByKey = new Map<string, Map<string, number>>();
 
   for await (const chunk of ctx.reader.streamChunks({ maxChunks: ctx.limits.maxChunks })) {
     scanned += 1;
+    lengths.push(chunk.length);
+    if (chunk.length >= LARGE_CHUNK_CHARS) largeChunks += 1;
     const metadata = chunk.metadata;
     const keys = metadata ? Object.keys(metadata) : [];
+    if (hasMappedSourceLocator || keys.some((key) => SOURCE_LOCATOR_KEYS.has(key))) {
+      sourceLocatorRows += 1;
+    }
     if (keys.length === 0) {
       missing += 1;
       continue;
@@ -114,10 +148,52 @@ async function runMetadataArchitecture(ctx: DetectorContext): Promise<{
     }
   }
 
-  if (scanned === 0) return { findings, coverageScore: null };
+  if (scanned === 0) {
+    findings.push({
+      type: "architecture",
+      severity: "critical",
+      title: "Mapped chunk table is empty",
+      evidence: {
+        table: ctx.mapping.table,
+        scannedChunks: 0,
+        totalChunks: ctx.totalChunks,
+      },
+      suggestedRepair: {
+        kind: "verify_ingestion",
+        description: "Verify the ingestion job inserted chunks into this table before testing retrieval quality.",
+      },
+      affectedCount: 1,
+    });
+    return { findings, coverageScore: 0, largeChunkPct: 0, emptyTable: true };
+  }
+
+  lengths.sort((a, b) => a - b);
+  const largeChunkPct = (largeChunks / scanned) * 100;
+  if (largeChunkPct >= LARGE_CHUNK_WARNING_PCT) {
+    findings.push({
+      type: "architecture",
+      severity: "warning",
+      title: "Many chunks are very large",
+      evidence: {
+        scannedChunks: scanned,
+        largeChunks,
+        largePct: Number(largeChunkPct.toFixed(1)),
+        thresholdChars: LARGE_CHUNK_CHARS,
+        p50Chars: percentile(lengths, 50),
+        p95Chars: percentile(lengths, 95),
+        maxChars: lengths.at(-1) ?? 0,
+        sampled: Boolean(ctx.sampled),
+      },
+      suggestedRepair: {
+        kind: "review_chunking",
+        description: "Review the chunking strategy; very large chunks can bury the relevant passage and waste context window budget.",
+      },
+      affectedCount: largeChunks,
+    });
+  }
 
   const missingPct = (missing / scanned) * 100;
-  if (missingPct >= SPARSE_METADATA_WARNING_PCT) {
+  if (hasMappedMetadata && missingPct >= SPARSE_METADATA_WARNING_PCT) {
     findings.push({
       type: "architecture",
       severity: "warning",
@@ -147,7 +223,7 @@ async function runMetadataArchitecture(ctx: DetectorContext): Promise<{
     .sort((a, b) => b.presentRows - a.presentRows || a.key.localeCompare(b.key))
     .slice(0, 8);
 
-  if (inconsistentKeys.length > 0) {
+  if (hasMappedMetadata && inconsistentKeys.length > 0) {
     findings.push({
       type: "architecture",
       severity: "info",
@@ -179,7 +255,7 @@ async function runMetadataArchitecture(ctx: DetectorContext): Promise<{
     .sort((a, b) => b.rows - a.rows || a.key.localeCompare(b.key))
     .slice(0, 8);
 
-  if (mixedTypeKeys.length > 0) {
+  if (hasMappedMetadata && mixedTypeKeys.length > 0) {
     findings.push({
       type: "architecture",
       severity: "warning",
@@ -197,16 +273,51 @@ async function runMetadataArchitecture(ctx: DetectorContext): Promise<{
     });
   }
 
+  const sourceLocatorPct = (sourceLocatorRows / scanned) * 100;
+  if (!hasMappedSourceLocator && sourceLocatorPct < 80) {
+    findings.push({
+      type: "architecture",
+      severity: sourceLocatorRows === 0 ? "warning" : "info",
+      title: sourceLocatorRows === 0
+        ? "No source or citation locator was found"
+        : "Source/citation metadata is missing on many chunks",
+      evidence: {
+        scannedChunks: scanned,
+        sourceLocatorRows,
+        sourceLocatorPct: Number(sourceLocatorPct.toFixed(1)),
+        checkedMetadataKeys: [...SOURCE_LOCATOR_KEYS].sort(),
+        sampled: Boolean(ctx.sampled),
+      },
+      suggestedRepair: {
+        kind: "add_source_locator",
+        description: "Store a source URL, file path, or document id with each chunk so answers can show citations and operators can trace bad retrievals.",
+      },
+      affectedCount: scanned - sourceLocatorRows,
+    });
+  }
+
   return {
     findings,
-    coverageScore: metadataCoverageScore(missingPct, mixedTypeKeys.length),
+    coverageScore: hasMappedMetadata
+      ? Math.min(
+          metadataCoverageScore(missingPct, mixedTypeKeys.length),
+          sourceLocatorPct < 80 ? Math.round(sourceLocatorPct) : 100,
+        )
+      : (sourceLocatorPct < 80 ? Math.round(sourceLocatorPct) : null),
+    largeChunkPct,
+    emptyTable: false,
   };
 }
 
 export async function runArchitecture(ctx: DetectorContext): Promise<ArchitectureResult> {
-  const metadata = await runMetadataArchitecture(ctx);
-  const findings = [...metadata.findings];
+  const corpus = await runCorpusArchitecture(ctx);
+  const findings = [...corpus.findings];
   const catalogSignals = ctx.reader.inspectArchitecture ? await ctx.reader.inspectArchitecture() : [];
   findings.push(...catalogSignals.map(signalToFinding));
-  return { findings, coverageScore: metadata.coverageScore };
+  return {
+    findings,
+    coverageScore: corpus.coverageScore,
+    largeChunkPct: corpus.largeChunkPct,
+    emptyTable: corpus.emptyTable,
+  };
 }

@@ -33,6 +33,7 @@ Each fixture is its own database so introspection sees one RAG system per connec
 | `fixture_custom` | interactive mapping | `kb_entries` (two long text columns) | 1024 | `modified_at` |
 | `fixture_supabase_docs` | `supabase-docs-tutorial` (auto) | `documents` | 1536 | none |
 | `fixture_metadata_health` | `generic-single-table` (auto) | `metadata_documents` | 1536 | `created_at` |
+| `fixture_empty_documents` | `supabase-docs-tutorial` (auto) | `documents` | 1536 | none |
 | `fixture_guiri_like` | `generic-single-table` (auto-ranked) | `document_chunks`, `embedding_cache`, `chunkfunk_chunks`, `sprigkeeper_chunks` | 1536 + 3072 | `created_at` |
 
 ## Planted problems (exact counts)
@@ -73,10 +74,16 @@ HNSW index on `embedding` so architecture checks cover an indexed vector table.
 
 ### `fixture_metadata_health` — sparse/mixed metadata (40 chunks)
 
-Real pgvector table used to prove metadata-health architecture findings against
-Postgres, not only in-memory mocks. It contains 12 rows with missing metadata and
-mixed `tenant_id` value types so filterability checks can flag real-world
-metadata drift without printing metadata values.
+Real pgvector table used to prove metadata/chunk-shape architecture findings
+against Postgres, not only in-memory mocks. It contains 12 rows with missing
+metadata, 10 oversized chunks, and mixed `tenant_id` value types so filterability
+and chunking checks can flag real-world drift without printing metadata values.
+
+### `fixture_empty_documents` — failed ingestion shape (0 chunks)
+
+Valid `documents` table with `content`, `embedding`, and `metadata`, but no rows.
+Verifies that ChunkFunk can still auto-map a conventional empty table and report
+that ingestion produced zero chunks instead of returning a misleading clean scan.
 
 ### `fixture_guiri_like` — multi-table auto-detect (150 primary chunks)
 
