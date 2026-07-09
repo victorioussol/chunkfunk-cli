@@ -1,0 +1,69 @@
+name: RAG operator feedback
+description: Tell us whether ChunkFunk's first scan helped, without sharing private data.
+title: "[Operator feedback]: "
+labels: ["needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for trying ChunkFunk on a real RAG database.
+
+        This is a public issue. Do not include connection strings, tokens, document text, customer names, source URLs, raw metadata values, screenshots with private data, or table names that identify your company. Categories and sanitized schema shapes are enough.
+  - type: dropdown
+    id: database
+    attributes:
+      label: What did you scan?
+      options:
+        - Postgres with pgvector
+        - Postgres with another vector setup
+        - I could not reach a completed scan
+    validations:
+      required: true
+  - type: dropdown
+    id: mapping
+    attributes:
+      label: How did the first mapping step go?
+      options:
+        - ChunkFunk picked the right chunk table automatically
+        - I selected or mapped the table manually
+        - There were several plausible tables and I was not sure
+        - Mapping or connection failed
+    validations:
+      required: true
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: What was the most useful outcome?
+      options:
+        - It found a real maintenance issue I had not identified
+        - It confirmed a maintenance issue I already suspected
+        - The output was inaccurate or not useful
+        - I could not get a useful result
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: What should we understand?
+      description: Use only safe categories, such as stale data, duplicate chunks, missing metadata, weak citations, bad chunk boundaries, empty ingestion, or index/schema health.
+      placeholder: "The scan surfaced stale data and missing timestamps. I expected a clearer next step for ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: followup
+    attributes:
+      label: Could you help us reproduce this safely?
+      description: A sanitized schema or fixture is optional and should never contain row data.
+      options:
+        - Yes, I can share a sanitized schema shape
+        - Maybe, after a follow-up
+        - No, feedback only
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I did not include credentials, private documents, customer data, real source URLs, raw metadata values, or other sensitive information.
+          required: true
