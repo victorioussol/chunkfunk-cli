@@ -1,6 +1,7 @@
 import type { JsonObject } from "../../src/schemas/json";
 import { hashContent, normalizedLength } from "../../src/detectors/heuristic/normalize";
 import type {
+  ArchitectureSignal,
   ChunkRecord,
   DetectorReader,
   NearNeighborPair,
@@ -28,7 +29,10 @@ function cosine(a: number[], b: number[]): number {
 
 /** In-memory DetectorReader for unit tests; mirrors the pg reader's contract. */
 export class MockReader implements DetectorReader {
-  constructor(private readonly chunks: MockChunk[]) {}
+  constructor(
+    private readonly chunks: MockChunk[],
+    private readonly architectureSignals: ArchitectureSignal[] = [],
+  ) {}
 
   private toRecord(chunk: MockChunk): ChunkRecord {
     const embedding = chunk.embedding ?? null;
@@ -49,6 +53,10 @@ export class MockReader implements DetectorReader {
 
   async hasEmbeddings(): Promise<boolean> {
     return this.chunks.some((c) => (c.embedding ?? null) !== null);
+  }
+
+  async inspectArchitecture(): Promise<ArchitectureSignal[]> {
+    return this.architectureSignals;
   }
 
   async *streamChunks(options?: { maxChunks?: number }): AsyncIterable<ChunkRecord> {

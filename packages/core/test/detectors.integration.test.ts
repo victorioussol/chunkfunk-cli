@@ -75,6 +75,32 @@ const MAPPINGS: Record<string, MappingV1> = {
       updatedAt: null,
     },
   },
+  fixture_metadata_health: {
+    version: 1,
+    dialect: "pgvector",
+    table: "public.metadata_documents",
+    columns: {
+      content: "content",
+      embedding: "embedding",
+      metadata: "metadata",
+      documentId: null,
+      sourceUrl: "meta:metadata.source",
+      updatedAt: "created_at",
+    },
+  },
+  fixture_empty_documents: {
+    version: 1,
+    dialect: "pgvector",
+    table: "public.documents",
+    columns: {
+      content: "content",
+      embedding: "embedding",
+      metadata: "metadata",
+      documentId: null,
+      sourceUrl: null,
+      updatedAt: null,
+    },
+  },
 };
 
 describe.skipIf(!BASE)("detectors vs fixtures", () => {
@@ -104,12 +130,16 @@ describe.skipIf(!BASE)("detectors vs fixtures", () => {
   let llamaindex: Awaited<ReturnType<typeof runHeuristicDetectors>>;
   let custom: Awaited<ReturnType<typeof runHeuristicDetectors>>;
   let supabaseDocs: Awaited<ReturnType<typeof runHeuristicDetectors>>;
+  let metadataHealth: Awaited<ReturnType<typeof runHeuristicDetectors>>;
+  let emptyDocs: Awaited<ReturnType<typeof runHeuristicDetectors>>;
 
   beforeAll(async () => {
     langchain = (await run("fixture_langchain")).result;
     llamaindex = (await run("fixture_llamaindex")).result;
     custom = (await run("fixture_custom")).result;
     supabaseDocs = (await run("fixture_supabase_docs")).result;
+    metadataHealth = (await run("fixture_metadata_health")).result;
+    emptyDocs = (await run("fixture_empty_documents")).result;
   }, 120_000);
 
   afterAll(async () => {
@@ -183,6 +213,43 @@ describe.skipIf(!BASE)("detectors vs fixtures", () => {
       expect(supabaseDocs.stats.riskyCritical).toBe(0);
       expect(supabaseDocs.stats.exactDuplicateGroups).toBe(0);
       expect(supabaseDocs.stats.nearDuplicatePairs).toBe(0);
+    });
+  });
+
+  describe("fixture_metadata_health (metadata architecture)", () => {
+    it("flags sparse metadata and mixed filter value types without exposing values", () => {
+      expect(
+        metadataHealth.findings.find((f) => f.title === "Metadata is missing on many chunks")?.severity,
+      ).toBe("warning");
+      expect(
+        metadataHealth.findings.find((f) => f.title === "Metadata filter fields use mixed value types")?.severity,
+      ).toBe("warning");
+      const serialized = JSON.stringify(metadataHealth.findings);
+      expect(serialized).toContain("tenant_id");
+      expect(serialized).not.toContain("tenant-a");
+      expect(serialized).not.toContain("1001");
+      expect(metadataHealth.subscores.coverage).toBeLessThan(100);
+      expect(metadataHealth.score).toBeLessThan(100);
+    });
+
+    it("flags oversized chunks without exposing chunk text", () => {
+      const oversized = metadataHealth.findings.find((f) => f.title === "Many chunks are very large");
+      expect(oversized?.severity).toBe("warning");
+      expect(oversized?.affectedCount).toBe(10);
+      const serialized = JSON.stringify(oversized);
+      expect(serialized).toContain("p95Chars");
+      expect(serialized).not.toContain("Long supporting paragraph");
+      expect(metadataHealth.subscores.quality).toBeLessThan(100);
+    });
+  });
+
+  describe("fixture_empty_documents (failed ingestion)", () => {
+    it("reports an empty mapped chunk table as critical", () => {
+      expect(emptyDocs.stats.totalChunks).toBe(0);
+      expect(emptyDocs.findings.find((f) => f.title === "Mapped chunk table is empty")?.severity).toBe("critical");
+      expect(emptyDocs.subscores.coverage).toBe(0);
+      expect(emptyDocs.subscores.quality).toBe(0);
+      expect(emptyDocs.score).toBeLessThan(80);
     });
   });
 });

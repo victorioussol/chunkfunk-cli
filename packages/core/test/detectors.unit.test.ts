@@ -3,6 +3,7 @@ import type { MappingV1 } from "../src/schemas/mapping";
 import {
   DEFAULT_LIMITS,
   DEFAULT_THRESHOLDS,
+  runArchitecture,
   runEmbeddingIntegrity,
   runExactDuplicate,
   runFreshness,
@@ -218,11 +219,109 @@ describe("embedding-integrity", () => {
   });
 });
 
+describe("architecture", () => {
+  it("reports an empty mapped table as a critical ingestion failure", async () => {
+    const result = await runArchitecture(ctx([]));
+    expect(result.emptyTable).toBe(true);
+    expect(result.coverageScore).toBe(0);
+    expect(result.findings.find((f) => f.title === "Mapped chunk table is empty")?.severity).toBe("critical");
+  });
+
+  it("flags missing metadata coverage and mixed metadata value types without exposing values", async () => {
+    const chunks: MockChunk[] = [
+      { ref: "a", content: LONG, metadata: { source: "docs", tenant_id: "team-a", score: 1 } },
+      { ref: "b", content: LONG, metadata: { source: "docs", tenant_id: "team-a", score: "1" } },
+      { ref: "c", content: LONG, metadata: { source: "docs", tenant_id: "team-a", score: 2 } },
+      { ref: "d", content: LONG, metadata: { source: "docs", tenant_id: "team-a", score: "2" } },
+      { ref: "e", content: LONG, metadata: { source: "docs", tenant_id: "team-a", score: 3 } },
+      { ref: "f", content: LONG, metadata: null },
+      { ref: "g", content: LONG, metadata: null },
+    ];
+    const result = await runArchitecture(ctx(chunks));
+
+    expect(result.findings.find((f) => f.title === "Metadata is missing on many chunks")?.severity).toBe("warning");
+    const mixed = result.findings.find((f) => f.title === "Metadata filter fields use mixed value types");
+    expect(mixed?.severity).toBe("warning");
+    expect(result.coverageScore).toBeLessThan(100);
+    expect(JSON.stringify(mixed?.evidence)).toContain("sha256:");
+    expect(JSON.stringify(mixed?.evidence)).not.toContain("score");
+    expect(JSON.stringify(result.findings)).not.toContain("team-a");
+  });
+
+  it("flags oversized chunks without exposing chunk text", async () => {
+    const huge = `${LONG} ${"Long supporting paragraph. ".repeat(180)}`;
+    const chunks: MockChunk[] = [];
+    for (let i = 0; i < 10; i += 1) {
+      chunks.push({
+        ref: `large-${i}`,
+        content: huge,
+        metadata: { source: "docs" },
+      });
+    }
+    for (let i = 0; i < 30; i += 1) {
+      chunks.push({
+        ref: `ok-${i}`,
+        content: LONG,
+        metadata: { source: "docs" },
+      });
+    }
+    const result = await runArchitecture(ctx(chunks));
+    const oversized = result.findings.find((f) => f.title === "Many chunks are very large");
+    expect(oversized?.severity).toBe("warning");
+    expect(oversized?.affectedCount).toBe(10);
+    expect(result.largeChunkPct).toBe(25);
+    expect(JSON.stringify(oversized)).not.toContain("Long supporting paragraph");
+  });
+
+  it("flags missing source/citation locators without exposing metadata values", async () => {
+    const chunks: MockChunk[] = [
+      { ref: "a", content: LONG, metadata: { tenant_id: "team-a" } },
+      { ref: "b", content: LONG, metadata: { tenant_id: "team-a" } },
+    ];
+    const result = await runArchitecture(ctx(chunks));
+    const citation = result.findings.find((f) => f.title === "No source or citation locator was found");
+    expect(citation?.severity).toBe("warning");
+    expect(JSON.stringify(citation)).toContain("sourceLocatorRows");
+    expect(JSON.stringify(result.findings)).not.toContain("team-a");
+  });
+
+  it("hashes uncommon metadata keys before they can leave the process", async () => {
+    const chunks: MockChunk[] = [];
+    for (let i = 0; i < 24; i += 1) {
+      chunks.push({
+        ref: `r${i}`,
+        content: LONG,
+        metadata: i % 2 === 0 ? { secretCustomerShardName: "private-value" } : {},
+      });
+    }
+    const result = await runArchitecture(ctx(chunks));
+    const serialized = JSON.stringify(result.findings);
+    expect(serialized).toContain("sha256:");
+    expect(serialized).not.toContain("secretCustomerShardName");
+    expect(serialized).not.toContain("private-value");
+  });
+
+  it("includes read-only catalog architecture signals from the reader", async () => {
+    const reader = new MockReader(
+      [{ ref: "a", content: LONG, metadata: { source: "docs" } }],
+      [
+        {
+          severity: "info",
+          title: "Mapped table has multiple vector columns",
+          evidence: { table: "public.docs", otherVectorColumns: ["embedding_3072"] },
+        },
+      ],
+    );
+    const result = await runArchitecture(ctx([], { reader, totalChunks: 1 }));
+    expect(result.findings.some((f) => f.title === "Mapped table has multiple vector columns")).toBe(true);
+  });
+});
+
 describe("orchestrator", () => {
-  it("aggregates findings and produces a health score with coverage redistributed", async () => {
+  it("aggregates findings and scores metadata coverage when metadata is mapped", async () => {
     const chunks: MockChunk[] = [{ ref: "a", content: LONG, embedding: [1, 0, 0] }];
     const result = await runHeuristicDetectors(ctx(chunks));
-    expect(result.subscores.coverage).toBeNull();
+    expect(result.subscores.coverage).toBe(0);
     expect(result.score).toBeGreaterThanOrEqual(0);
     expect(result.score).toBeLessThanOrEqual(100);
     expect(result.scoreVersion).toBe(1);

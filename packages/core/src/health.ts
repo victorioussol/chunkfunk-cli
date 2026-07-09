@@ -16,7 +16,7 @@ export const HEALTH_WEIGHTS: Record<keyof HealthSubscores, number> = {
 
 /**
  * Combine subscores into the 0-100 health score. When a nullable subscore
- * (freshness, coverage) is unmeasurable (null), its weight is redistributed
+ * (freshness or coverage) is unmeasurable (null), its weight is redistributed
  * proportionally across the measured subscores (§5.7).
  */
 export function computeHealthScore(subscores: HealthSubscores): number {
@@ -60,7 +60,7 @@ export function riskSubscore(
   return Math.max(0, 100 - 25 * criticalCount - 5 * warningCount);
 }
 
-/** coverage = tests passed/total*100; null until tests exist. */
+/** coverage = tests passed/total*100; null when no coverage signal exists. */
 export function coverageSubscore(
   passed: number,
   total: number,

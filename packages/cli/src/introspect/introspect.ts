@@ -33,10 +33,11 @@ function preferredColumn(
   table: CandidateTable,
   predicate: (udt: string) => boolean,
   names: string[],
+  opts: { allowFallback?: boolean } = {},
 ): string | null {
   const wanted = new Set(names);
   return table.columns.find((c) => predicate(c.udtName) && wanted.has(c.name))?.name
-    ?? table.columns.find((c) => predicate(c.udtName))?.name
+    ?? (opts.allowFallback === false ? null : table.columns.find((c) => predicate(c.udtName))?.name)
     ?? null;
 }
 
@@ -56,6 +57,7 @@ function tableNameScore(name: string): number {
   let score = 0;
   if (lower === "document_chunks") score += 10;
   else if (lower === "documents") score += 7;
+  else if (lower.endsWith("_documents")) score += 5;
   else if (lower.endsWith("_chunks") || lower.includes("chunk")) score += 5;
 
   if (lower.includes("cache")) score -= 12;
@@ -118,7 +120,12 @@ async function scoreGenericCandidate(
 
   const embedding = chooseEmbeddingColumn(table);
   const metadata = preferredColumn(table, (udt) => JSON_UDTS.has(udt), ["metadata", "cmetadata", "metadata_"]);
-  const sourceUrl = preferredColumn(table, (udt) => TEXT_UDTS.has(udt), ["source_url", "url", "page_url"]);
+  const sourceUrl = preferredColumn(
+    table,
+    (udt) => TEXT_UDTS.has(udt),
+    ["source_url", "url", "page_url"],
+    { allowFallback: false },
+  );
   const documentId = columnNamed(table, ["document_id", "doc_id", "source_id", "node_id"]);
   const updatedAt = preferredColumn(table, (udt) => TIME_UDTS.has(udt), ["updated_at", "modified_at", "created_at"]);
 

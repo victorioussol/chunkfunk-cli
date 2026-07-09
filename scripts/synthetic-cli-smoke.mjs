@@ -264,6 +264,38 @@ if (!fixtureBaseUrl) {
     assert(report.stack.mapping.table === "public.documents", "expected Supabase docs mapping");
   });
 
+  await step("flags metadata filterability problems without leaking values", async () => {
+    const dir = join(tempRoot, "metadata-health");
+    await mkdir(dir, { recursive: true });
+    const env = cleanEnv({ DATABASE_URL: databaseUrl("fixture_metadata_health") });
+    const result = await run(chunkfunkBin, ["scan", "--json", "--yes"], { cwd: dir, env });
+    assert(result.code === 0, result.stderr || result.stdout);
+    assert(!result.stdout.includes("tenant-a"), "report must not print metadata string values");
+    assert(!result.stdout.includes("1001"), "report must not print metadata numeric values");
+    const report = parseJson(result.stdout, "metadata-health scan");
+    assert(report.totals.chunks === 40, `expected 40 chunks, got ${report.totals.chunks}`);
+    assert(report.stack.mapping.table === "public.metadata_documents", "expected metadata_documents mapping");
+    assert(report.stack.mapping.columns.sourceUrl === null, "source URL must not be guessed from the content column");
+    assert(report.health.score < 100, "metadata warnings should lower the headline health score");
+    const titles = report.findings.map((finding) => finding.title);
+    assert(titles.includes("Metadata is missing on many chunks"), "expected sparse metadata finding");
+    assert(titles.includes("Metadata filter fields use mixed value types"), "expected mixed metadata type finding");
+    assert(titles.includes("Many chunks are very large"), "expected oversized chunk finding");
+  });
+
+  await step("reports an empty ingested table clearly", async () => {
+    const dir = join(tempRoot, "empty-documents");
+    await mkdir(dir, { recursive: true });
+    const env = cleanEnv({ DATABASE_URL: databaseUrl("fixture_empty_documents") });
+    const result = await run(chunkfunkBin, ["scan", "--json", "--yes"], { cwd: dir, env });
+    assert(result.code === 0, result.stderr || result.stdout);
+    const report = parseJson(result.stdout, "empty documents scan");
+    assert(report.totals.chunks === 0, `expected 0 chunks, got ${report.totals.chunks}`);
+    assert(report.stack.mapping.table === "public.documents", "expected documents mapping");
+    assert(report.findings.some((finding) => finding.title === "Mapped chunk table is empty"), "expected empty table finding");
+    assert(report.health.score < 80, "empty ingested table should not look healthy");
+  });
+
   await step("auto-ranks Guiri-like multi-table fixture", async () => {
     const dir = join(tempRoot, "guiri-like");
     await mkdir(dir, { recursive: true });

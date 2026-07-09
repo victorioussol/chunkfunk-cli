@@ -1,6 +1,6 @@
 import type { JsonObject } from "../../schemas/json";
 import type { MappingV1 } from "../../schemas/mapping";
-import type { FindingV1 } from "../../schemas/report";
+import type { FindingSeverity, FindingV1, SuggestedRepair } from "../../schemas/report";
 
 /**
  * One chunk as seen by detectors. The reader NEVER exposes full document text —
@@ -29,6 +29,14 @@ export interface NearNeighborPair {
   similarity: number;
   refContentHash: string;
   neighborContentHash: string;
+}
+
+export interface ArchitectureSignal {
+  severity: FindingSeverity;
+  title: string;
+  evidence: JsonObject;
+  suggestedRepair?: SuggestedRepair | null;
+  affectedCount?: number;
 }
 
 /** A watcher signal snapshot for a source (§5.5). */
@@ -61,6 +69,8 @@ export interface DetectorReader {
   probeNearestNeighbors(probeLimit: number): AsyncIterable<NearNeighborPair>;
   /** Whether an embedding column exists and is populated for at least one row. */
   hasEmbeddings(): Promise<boolean>;
+  /** Optional read-only catalog checks provided by concrete readers. */
+  inspectArchitecture?(): Promise<ArchitectureSignal[]>;
 }
 
 export interface DetectorThresholds {

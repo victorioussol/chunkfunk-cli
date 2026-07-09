@@ -8,6 +8,7 @@ export {
   DEFAULT_LIMITS,
   type ChunkRecord,
   type NearNeighborPair,
+  type ArchitectureSignal,
   type SourceSnapshot,
   type DetectorReader,
   type DetectorThresholds,
@@ -24,4 +25,5 @@ export {
   runEmbeddingIntegrity,
   type EmbeddingIntegrityResult,
 } from "./embedding-integrity";
+export { runArchitecture, type ArchitectureResult } from "./architecture";
 export { runHeuristicDetectors, type HeuristicRunResult } from "./run";

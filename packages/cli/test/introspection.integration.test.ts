@@ -68,6 +68,31 @@ describe.skipIf(!BASE)("introspection vs fixtures", () => {
     expect(result.mapping.columns.content).toBe("content");
   });
 
+  it("auto-detects an empty conventional documents table", async () => {
+    const result = await introspectFixture("fixture_empty_documents", {
+      yes: true,
+      prompts: throwingPrompts,
+    });
+    expect(result.recipeId).toBe("supabase-docs-tutorial");
+    expect(result.mapping.table).toBe("public.documents");
+    expect(result.mapping.columns.content).toBe("content");
+    expect(result.mapping.columns.embedding).toBe("embedding");
+  });
+
+  it("auto-detects fixture_metadata_health as a generic pgvector table", async () => {
+    const result = await introspectFixture("fixture_metadata_health", {
+      yes: true,
+      prompts: throwingPrompts,
+    });
+    expect(result.recipeId).toBe("generic-single-table");
+    expect(result.mapping.table).toBe("public.metadata_documents");
+    expect(result.mapping.columns.content).toBe("content");
+    expect(result.mapping.columns.embedding).toBe("embedding");
+    expect(result.mapping.columns.metadata).toBe("metadata");
+    expect(result.mapping.columns.sourceUrl).toBeNull();
+    expect(result.mapping.columns.updatedAt).toBe("created_at");
+  });
+
   it("auto-ranks the Guiri-like primary chunk table over cache/internal tables", async () => {
     const result = await introspectFixture("fixture_guiri_like", {
       yes: true,
@@ -123,6 +148,32 @@ describe.skipIf(!BASE)("introspection vs fixtures", () => {
         streamed += 1;
       }
       expect(streamed).toBe(298);
+    } finally {
+      await reader.close();
+    }
+  });
+
+  it("reports pgvector architecture signals from catalog-only reads", async () => {
+    const reader = new UserDbReader(dbUrl("fixture_guiri_like"));
+    try {
+      const { mapping } = await introspect(reader, { yes: true, prompts: throwingPrompts });
+      reader.setMapping(mapping);
+      const signals = await reader.inspectArchitecture();
+      expect(signals.some((signal) => signal.title === "Mapped table has multiple vector columns")).toBe(true);
+      expect(signals.some((signal) => signal.title.includes("no approximate vector index"))).toBe(true);
+    } finally {
+      await reader.close();
+    }
+  });
+
+  it("recognizes an existing HNSW index on the mapped embedding column", async () => {
+    const reader = new UserDbReader(dbUrl("fixture_supabase_docs"));
+    try {
+      const { mapping } = await introspect(reader, { yes: true, prompts: throwingPrompts });
+      reader.setMapping(mapping);
+      const signals = await reader.inspectArchitecture();
+      expect(signals.some((signal) => signal.title.includes("no approximate vector index"))).toBe(false);
+      expect(signals.some((signal) => signal.title === "Vector index exists on a different embedding column")).toBe(false);
     } finally {
       await reader.close();
     }

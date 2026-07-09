@@ -1,6 +1,5 @@
 import {
   computeHealthScore,
-  coverageSubscore,
   duplicationSubscore,
   freshnessSubscore,
   qualitySubscore,
@@ -8,6 +7,7 @@ import {
 } from "../../health";
 import { HEALTH_SCORE_VERSION } from "../../health";
 import type { FindingV1, HealthSubscores } from "../../schemas/report";
+import { runArchitecture } from "./architecture";
 import { runEmbeddingIntegrity } from "./embedding-integrity";
 import { runExactDuplicate } from "./exact-duplicate";
 import { runFreshness } from "./freshness";
@@ -34,14 +34,15 @@ export interface HeuristicRunResult {
     riskyWarning: number;
     nullEmbeddings: number;
     distinctEmbeddingDims: number[];
+    largeChunksPct: number;
     staleDocsPct: number | null;
   };
 }
 
 /**
  * Runs every heuristic detector (§5) against the context, aggregates the findings,
- * and derives the v1 health subscores + score (§5.7). Coverage is null until
- * retrieval tests exist (PR-13); its weight is redistributed by computeHealthScore.
+ * and derives the v1 health subscores + score (§5.7). Coverage starts with
+ * metadata filterability; richer retrieval tests can refine it later.
  */
 export async function runHeuristicDetectors(
   ctx: DetectorContext,
@@ -54,6 +55,7 @@ export async function runHeuristicDetectors(
   const risky = await runRiskyChunk(ctx);
   const freshness = await runFreshness(ctx);
   const embedding = await runEmbeddingIntegrity(ctx);
+  const architecture = await runArchitecture(ctx);
 
   const findings = [
     ...exact.findings,
@@ -62,15 +64,16 @@ export async function runHeuristicDetectors(
     ...risky.findings,
     ...freshness.findings,
     ...embedding.findings,
+    ...architecture.findings,
   ];
 
   const subscores: HealthSubscores = {
     freshness:
       freshness.staleDocsPct === null ? null : freshnessSubscore(freshness.staleDocsPct),
     duplication: duplicationSubscore(exact.corpusPct, near.estimatedCorpusPct),
-    quality: qualitySubscore(thin.corpusPct),
+    quality: architecture.emptyTable ? 0 : qualitySubscore(thin.corpusPct + architecture.largeChunkPct),
     risk: riskSubscore(risky.criticalCount, risky.warningCount),
-    coverage: coverageSubscore(0, 0),
+    coverage: architecture.coverageScore,
   };
 
   return {
@@ -91,6 +94,7 @@ export async function runHeuristicDetectors(
       riskyWarning: risky.warningCount,
       nullEmbeddings: embedding.nullEmbeddings,
       distinctEmbeddingDims: embedding.distinctDims,
+      largeChunksPct: architecture.largeChunkPct,
       staleDocsPct: freshness.staleDocsPct,
     },
   };
