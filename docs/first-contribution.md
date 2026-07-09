@@ -38,3 +38,7 @@ ChunkFunk exists to help builders trust their RAG databases. The review will car
 Open an issue or draft pull request. Partial context is fine as long as private data is removed.
 
 The most useful sentence is: "Here is the RAG layout I use, and here is where ChunkFunk gets confused."
+
+If you are sharing a database shape, use
+[sanitized-schema-sharing.md](sanitized-schema-sharing.md) first so you do not
+post credentials, document text, source URLs, or raw metadata values.
