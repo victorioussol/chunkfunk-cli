@@ -45,7 +45,7 @@ export interface ThinChunkResult {
  */
 export async function runThinChunk(ctx: DetectorContext): Promise<ThinChunkResult> {
   const { thinChunkMinChars, linkNavDensity: densityThreshold } = ctx.thresholds;
-  const flagged: { ref: string; reason: ThinReason; length: number; excerpt: string }[] = [];
+  const flagged: { ref: string; reason: ThinReason; length: number }[] = [];
   let thinCount = 0;
 
   for await (const chunk of ctx.reader.streamChunks({ maxChunks: ctx.limits.maxChunks })) {
@@ -60,7 +60,6 @@ export async function runThinChunk(ctx: DetectorContext): Promise<ThinChunkResul
         ref: chunk.ref,
         reason,
         length: chunk.length,
-        excerpt: chunk.contentSample.slice(0, 500),
       });
     }
   }
@@ -75,7 +74,6 @@ export async function runThinChunk(ctx: DetectorContext): Promise<ThinChunkResul
       ref: f.ref,
       reason: f.reason,
       length: f.length,
-      excerpt: f.excerpt,
       corpusPct: Number(corpusPct.toFixed(1)),
       truncatedFindings: thinCount > MAX_FINDINGS,
     },

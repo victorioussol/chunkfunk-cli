@@ -22,7 +22,8 @@ function capValue(value: JsonValue): JsonValue {
 /**
  * Caps every string in a finding's evidence (and its suggestedRepair.description)
  * to 500 chars. Shared by the CLI (emit-time cap, §10.4) and the sync API
- * (server-side truncation on ingest, §6 — defense in depth).
+ * (server-side truncation on ingest, §6 — defense in depth). Detectors should
+ * still avoid document text entirely.
  */
 export function capFindingEvidence(finding: FindingV1): FindingV1 {
   return {

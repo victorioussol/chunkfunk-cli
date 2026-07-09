@@ -209,6 +209,8 @@ if (!fixtureBaseUrl) {
     assert(scan.code === 0, scan.stderr || scan.stdout);
     assert(scan.stderr.includes("Running detectors"), "progress logs should go to stderr");
     assert(!scan.stdout.includes("Running detectors"), "stdout should stay pure JSON");
+    assert(!scan.stdout.includes("Our refund policy"), "JSON report must not print duplicate chunk text");
+    assert(!scan.stdout.includes("Note 0."), "JSON report must not print thin chunk text");
     const report = parseJson(scan.stdout, "langchain scan");
     assert(report.version === 1, "expected ReportV1");
     assert(report.totals.chunks === 298, `expected 298 chunks, got ${report.totals.chunks}`);

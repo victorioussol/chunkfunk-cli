@@ -70,11 +70,11 @@ describe("evidence cap", () => {
       type: "thin_chunk",
       severity: "info",
       title: "Thin chunk",
-      evidence: { excerpt: "x".repeat(5000), nested: ["y".repeat(900)] },
+      evidence: { detail: "x".repeat(5000), nested: ["y".repeat(900)] },
       affectedCount: 1,
     };
     const capped = capFindingEvidence(finding);
-    expect((capped.evidence.excerpt as string).length).toBe(MAX_EXCERPT_CHARS);
+    expect((capped.evidence.detail as string).length).toBe(MAX_EXCERPT_CHARS);
     expect(((capped.evidence.nested as string[])[0]).length).toBe(MAX_EXCERPT_CHARS);
   });
 });
@@ -91,9 +91,17 @@ describe("renderTerminal", () => {
   it("shows the score, subscores, findings, and fix-first list", () => {
     const out = renderTerminal(baseReport());
     expect(out).toContain("42/100");
+    expect(out).toContain("RAG rot: severe");
     expect(out).toContain("CRITICAL (1)");
     expect(out).toContain("3 chunks are exact duplicates");
     expect(out).toContain("Rotate the leaked secret");
+    expect(out).toContain("Share-safe");
+  });
+
+  it("does not print raw source locators in terminal output", () => {
+    const out = renderTerminal(baseReport());
+    expect(out).not.toContain("https://docs.example.com/sitemap.xml");
+    expect(out).toContain("https source sha256:");
   });
 
   it("caps each finding type at 5 shown with an overflow count", () => {
@@ -118,6 +126,13 @@ describe("renderHtml", () => {
     expect(html).not.toMatch(/https?:\/\/[^"']*\.(js|css)/i);
     expect(html).toContain("<!doctype html>");
     expect(html).toContain("42");
+    expect(html).toContain("RAG rot: severe");
+  });
+
+  it("does not print raw source locators in HTML output", () => {
+    const html = renderHtml(baseReport());
+    expect(html).not.toContain("https://docs.example.com/sitemap.xml");
+    expect(html).toContain("https source sha256:");
   });
 
   it("escapes dynamic content", () => {

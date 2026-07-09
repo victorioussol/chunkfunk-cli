@@ -105,6 +105,10 @@ The full published payload contract is in [TELEMETRY.md](TELEMETRY.md).
 
 See a committed sample report from the deliberately rotten LangChain fixture: [docs/sample-rotten-langchain-report.html](docs/sample-rotten-langchain-report.html).
 
+Human-readable reports include a simple `RAG rot` label so the result is easy to
+scan and share. Reports hide chunk text, metadata values, source locators, and
+connection strings; detailed evidence uses counts, refs, safe keys, and hashes.
+
 ## Terminal demo
 
 The source script for the terminal recording is committed at [docs/chunkfunk-demo.tape](docs/chunkfunk-demo.tape). The GIF slot is intentionally left for a real recording; no fake terminal capture is included.

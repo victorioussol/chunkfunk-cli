@@ -32,7 +32,7 @@ export const suggestedRepairSchema = z.object({
 
 export type SuggestedRepair = z.infer<typeof suggestedRepairSchema>;
 
-/** Same shape as the `findings` DB row minus ids (§3.1). Evidence excerpts are capped at 500 chars each — never full documents. */
+/** Same shape as the `findings` DB row minus ids (§3.1). Evidence uses counts, refs, safe keys, and hashes — never document text. */
 export const findingV1Schema = z.object({
   type: findingTypeSchema,
   severity: findingSeveritySchema,
