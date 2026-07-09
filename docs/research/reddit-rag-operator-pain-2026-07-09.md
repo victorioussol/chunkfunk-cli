@@ -227,3 +227,30 @@ Build the privacy-safe version:
   debugging will be unreliable even though the schema appears ready.
 - Prove it with a fake Postgres fixture where the locator column exists but many
   rows are null.
+
+## Follow-up Batch: Soft-Deleted Chunk Retention
+
+Issue [#39](https://github.com/victorioussol/chunkfunk-cli/issues/39) narrows
+the risky-content discussion to a deterministic maintenance check: rows that
+remain in the mapped RAG table even though common columns mark them deleted or
+archived.
+
+Evidence:
+
+- The existing Reddit/GitHub research repeatedly points to stale or untraceable
+  evidence as a debugging problem.
+- Pinecone documents deletes and data freshness as first-class vector-store
+  maintenance operations: https://docs.pinecone.io/guides/manage-data/delete-data
+- Soft-deleted vector research raises privacy and retention concerns when
+  deleted embeddings remain recoverable: https://arxiv.org/abs/2606.18497
+
+Build only the count-based version:
+
+- Look for common deletion markers such as `deleted_at`, `archived_at`,
+  `deleted`, `is_deleted`, `archived`, and `is_archived`.
+- Count rows marked deleted or archived while still present in the mapped chunk
+  table.
+- Do not print row ids, source locators, metadata values, document text, or
+  connection strings.
+- Keep broad malicious-document or prompt-injection classification out of scope
+  until real users ask for it and false-positive risk is much lower.

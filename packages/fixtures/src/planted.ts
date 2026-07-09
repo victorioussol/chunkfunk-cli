@@ -74,6 +74,12 @@ export const PLANTED = {
     total: 50,
     missingSourceUrlRows: 35,
   },
+  /** Fixture L proves soft-deleted rows can remain in a retrievable chunk table. */
+  retentionHealth: {
+    total: 64,
+    deletedAtRows: 12,
+    archivedRows: 4,
+  },
 } as const;
 
 export const DIMS = {
@@ -90,6 +96,7 @@ export const DIMS = {
   boundaryHealth: 1536,
   genericBody: 768,
   locatorCoverage: 1536,
+  retentionHealth: 1536,
 } as const;
 
 /** Derived totals, exported for README cross-checking and the seed self-check. */

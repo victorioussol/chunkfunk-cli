@@ -14,6 +14,20 @@ import { quoteIdent } from "./identifiers";
 
 const { Pool } = pg;
 
+const SOFT_DELETE_TIMESTAMP_COLUMNS = new Set([
+  "deleted_at",
+  "archived_at",
+  "removed_at",
+  "disabled_at",
+]);
+const SOFT_DELETE_BOOLEAN_COLUMNS = new Set([
+  "deleted",
+  "is_deleted",
+  "archived",
+  "is_archived",
+]);
+const TIME_UDTS = new Set(["timestamptz", "timestamp", "date"]);
+
 export interface ColumnInfo {
   name: string;
   udtName: string;
@@ -28,6 +42,18 @@ export interface CandidateTable {
   columns: ColumnInfo[];
   vectorColumns: string[];
   estimatedRows: number | null;
+}
+
+function softDeletePredicate(column: ColumnInfo): string | null {
+  const name = column.name.toLowerCase();
+  const quoted = quoteIdent(column.name);
+  if (SOFT_DELETE_TIMESTAMP_COLUMNS.has(name) && TIME_UDTS.has(column.udtName)) {
+    return `${quoted} is not null`;
+  }
+  if (SOFT_DELETE_BOOLEAN_COLUMNS.has(name) && column.udtName === "bool") {
+    return `${quoted} is true`;
+  }
+  return null;
 }
 
 /**
@@ -302,6 +328,45 @@ export class UserDbReader implements DetectorReader {
         },
         affectedCount: extraVectorColumns.length,
       });
+    }
+
+    const softDeletePredicates = (candidate?.columns ?? [])
+      .map((column) => ({
+        column: column.name,
+        predicate: softDeletePredicate(column),
+      }))
+      .filter((entry): entry is { column: string; predicate: string } => entry.predicate !== null);
+    if (softDeletePredicates.length > 0) {
+      const softDeleteWhere = softDeletePredicates.map((entry) => `(${entry.predicate})`).join(" or ");
+      const softDeleteCounts = await this.pool.query<{
+        marked_rows: string;
+        total_rows: string;
+      }>(
+        `select count(*) filter (where ${softDeleteWhere})::int as marked_rows,
+                count(*)::int as total_rows
+         from ${quoteIdent(mapping.table)}`,
+      );
+      const markedRows = Number(softDeleteCounts.rows[0]?.marked_rows ?? 0);
+      const totalRows = Number(softDeleteCounts.rows[0]?.total_rows ?? 0);
+      if (markedRows > 0) {
+        const markedPct = totalRows > 0 ? (markedRows / totalRows) * 100 : 0;
+        signals.push({
+          severity: "warning",
+          title: "Rows marked deleted or archived are still in the mapped chunk table",
+          evidence: {
+            table: mapping.table,
+            markerColumns: softDeletePredicates.map((entry) => entry.column).sort(),
+            markedRows,
+            totalRows,
+            markedPct: Number(markedPct.toFixed(1)),
+          },
+          suggestedRepair: {
+            kind: "verify_deletion_sync",
+            description: "Verify production retrieval excludes rows marked deleted or archived, or remove those chunks from the vector table.",
+          },
+          affectedCount: markedRows,
+        });
+      }
     }
 
     const approxIndexesOnOtherVectorColumns = indexes.filter((row) => {

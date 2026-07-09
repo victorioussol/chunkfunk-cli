@@ -41,6 +41,7 @@ const DATABASES = {
   boundaryHealth: "fixture_boundary_health",
   genericBody: "fixture_generic_body_chunks",
   locatorCoverage: "fixture_locator_coverage",
+  retentionHealth: "fixture_retention_health",
 } as const;
 
 function dbUrl(database: string): string {
@@ -657,6 +658,55 @@ async function seedLocatorCoverage(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Fixture L — retention health. Rows are still present in the mapped vector
+// table while common deletion/archival markers say they should no longer be
+// retrieved.
+// ---------------------------------------------------------------------------
+async function seedRetentionHealth(): Promise<void> {
+  await withClient(dbUrl(DATABASES.retentionHealth), async (client) => {
+    await resetSchema(client);
+    await client.query(`
+      create table retention_documents (
+        id uuid primary key default gen_random_uuid(),
+        content text not null,
+        embedding vector(${DIMS.retentionHealth}),
+        metadata jsonb,
+        source_url text,
+        updated_at timestamptz not null default now(),
+        deleted_at timestamptz,
+        archived boolean not null default false
+      );
+    `);
+    const rng = mulberry32(0x5245544e);
+    await client.query("begin");
+    for (let i = 0; i < PLANTED.retentionHealth.total; i += 1) {
+      const deletedAt = i < PLANTED.retentionHealth.deletedAtRows
+        ? new Date(Date.UTC(2026, 5, 1 + i)).toISOString()
+        : null;
+      const archived =
+        i >= PLANTED.retentionHealth.deletedAtRows &&
+        i < PLANTED.retentionHealth.deletedAtRows + PLANTED.retentionHealth.archivedRows;
+      await client.query(
+        `insert into retention_documents
+          (content, embedding, metadata, source_url, updated_at, deleted_at, archived)
+         values ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          healthyChunk(2000 + i),
+          toVectorLiteral(unitVector(DIMS.retentionHealth, rng)),
+          JSON.stringify({ topic: "retention" }),
+          sourceUrl(2000 + i),
+          new Date(Date.UTC(2026, 6, 8)).toISOString(),
+          deletedAt,
+          archived,
+        ],
+      );
+    }
+    await client.query("commit");
+    await client.query("analyze");
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Self-check — fail loudly if the seeded corpus drifts from README's contract.
 // ---------------------------------------------------------------------------
 async function scalar(client: pg.Client, sql: string): Promise<number> {
@@ -902,6 +952,23 @@ async function verify(): Promise<void> {
       );
     }
   });
+
+  await withClient(dbUrl(DATABASES.retentionHealth), async (client) => {
+    const total = await scalar(client, "select count(*) from retention_documents");
+    if (total !== PLANTED.retentionHealth.total) {
+      throw new Error(`retention-health total ${total} !== ${PLANTED.retentionHealth.total}`);
+    }
+    const deletedAtRows = await scalar(client, "select count(*) from retention_documents where deleted_at is not null");
+    if (deletedAtRows !== PLANTED.retentionHealth.deletedAtRows) {
+      throw new Error(
+        `retention-health deleted_at rows ${deletedAtRows} !== ${PLANTED.retentionHealth.deletedAtRows}`,
+      );
+    }
+    const archivedRows = await scalar(client, "select count(*) from retention_documents where archived is true");
+    if (archivedRows !== PLANTED.retentionHealth.archivedRows) {
+      throw new Error(`retention-health archived rows ${archivedRows} !== ${PLANTED.retentionHealth.archivedRows}`);
+    }
+  });
 }
 
 async function main(): Promise<void> {
@@ -917,6 +984,7 @@ async function main(): Promise<void> {
   await seedBoundaryHealth();
   await seedGenericBody();
   await seedLocatorCoverage();
+  await seedRetentionHealth();
   await verify();
   console.log(
     `Seeded fixtures:\n` +
@@ -942,7 +1010,9 @@ async function main(): Promise<void> {
       `  ${DATABASES.genericBody}: ${PLANTED.genericBody.healthy} chunks ` +
       `(generic body/properties/source_url schema)\n` +
       `  ${DATABASES.locatorCoverage}: ${PLANTED.locatorCoverage.total} chunks ` +
-      `(${PLANTED.locatorCoverage.missingSourceUrlRows} missing mapped source URLs)`,
+      `(${PLANTED.locatorCoverage.missingSourceUrlRows} missing mapped source URLs)\n` +
+      `  ${DATABASES.retentionHealth}: ${PLANTED.retentionHealth.total} chunks ` +
+      `(${PLANTED.retentionHealth.deletedAtRows + PLANTED.retentionHealth.archivedRows} marked deleted/archived)`,
   );
 }
 
