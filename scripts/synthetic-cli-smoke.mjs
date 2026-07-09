@@ -178,6 +178,20 @@ await step("packs the npm artifact", async () => {
   });
   assert(result.code === 0, result.stderr || result.stdout);
   const packed = parseJson(result.stdout, "npm pack");
+  const packedFiles = packed[0]?.files?.map((file) => file.path).sort();
+  assert(Array.isArray(packedFiles), "npm pack did not report the tarball file list");
+
+  const allowedRootFiles = new Set(["package.json", "README.md", "LICENSE", "TELEMETRY.md"]);
+  const unexpectedFiles = packedFiles.filter(
+    (file) => !allowedRootFiles.has(file) && !file.startsWith("dist/"),
+  );
+  assert(
+    unexpectedFiles.length === 0,
+    `tarball contains files outside the public allowlist: ${unexpectedFiles.join(", ")}`,
+  );
+  assert(packedFiles.includes("dist/chunkfunk.js"), "tarball is missing the bundled CLI entry");
+  console.log(`INFO npm pack files:\n${packedFiles.map((file) => `  - ${file}`).join("\n")}`);
+
   const tarball = packed[0]?.filename;
   assert(tarball, "npm pack did not report a tarball filename");
   const tarballPath = join(packDir, tarball);
