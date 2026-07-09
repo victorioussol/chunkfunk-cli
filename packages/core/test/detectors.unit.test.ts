@@ -127,6 +127,32 @@ describe("thin-chunk", () => {
     expect(JSON.stringify(result.findings)).not.toContain("Too short");
     expect(JSON.stringify(result.findings)).not.toContain("https://a.com");
   });
+
+  it("summarizes widespread mid-sentence chunk boundaries without exposing text", async () => {
+    const chunks: MockChunk[] = [];
+    for (let i = 0; i < 12; i += 1) {
+      chunks.push({
+        ref: `fragment-${i}`,
+        content: `and continues the policy explanation from a previous chunk with enough operational detail to exceed the thin length threshold while still ending abruptly without punctuation ${i}`,
+      });
+    }
+    for (let i = 0; i < 20; i += 1) {
+      chunks.push({ ref: `healthy-${i}`, content: LONG });
+    }
+
+    const result = await runThinChunk(ctx(chunks));
+    const summary = result.findings.find(
+      (f) => f.title === "Many chunks look mechanically split mid-sentence",
+    );
+    expect(summary?.severity).toBe("warning");
+    expect(summary?.affectedCount).toBe(12);
+    expect(summary?.evidence).toMatchObject({
+      totalChunks: 32,
+      midSentenceChunks: 12,
+      midSentencePct: 37.5,
+    });
+    expect(JSON.stringify(summary)).not.toContain("policy explanation");
+  });
 });
 
 describe("risky-chunk", () => {

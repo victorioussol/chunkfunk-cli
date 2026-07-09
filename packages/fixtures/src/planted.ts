@@ -60,6 +60,11 @@ export const PLANTED = {
     proseRows: 18,
     missingTimestampRows: 20,
   },
+  /** Fixture I proves boundary-fragment summary diagnostics. */
+  boundaryHealth: {
+    midSentenceFragments: 24,
+    proseRows: 16,
+  },
 } as const;
 
 export const DIMS = {
@@ -73,6 +78,7 @@ export const DIMS = {
   guiriLikeCurrent: 1536,
   guiriLikeNext: 3072,
   structuredHealth: 1536,
+  boundaryHealth: 1536,
 } as const;
 
 /** Derived totals, exported for README cross-checking and the seed self-check. */
@@ -94,6 +100,9 @@ export const DERIVED = {
     PLANTED.structuredHealth.tableLikeWithoutLocators +
     PLANTED.structuredHealth.tableLikeWithLocators +
     PLANTED.structuredHealth.proseRows, // 48
+  boundaryHealthTotal:
+    PLANTED.boundaryHealth.midSentenceFragments +
+    PLANTED.boundaryHealth.proseRows, // 40
 } as const;
 
 /** Fake, non-functional secrets planted in fixture A. NEVER real credentials. */

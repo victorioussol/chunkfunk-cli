@@ -3,6 +3,8 @@ import type { DetectorContext } from "./types";
 
 const WARNING_CORPUS_PCT = 15;
 const MAX_FINDINGS = 500;
+const MID_SENTENCE_SUMMARY_MIN_CHUNKS = 8;
+const MID_SENTENCE_SUMMARY_PCT = 20;
 
 const URL_TOKEN = /^(https?:\/\/|www\.)/i;
 const SEPARATOR_TOKEN = /^[|›»·•\-—/>\\]+$/;
@@ -47,6 +49,7 @@ export async function runThinChunk(ctx: DetectorContext): Promise<ThinChunkResul
   const { thinChunkMinChars, linkNavDensity: densityThreshold } = ctx.thresholds;
   const flagged: { ref: string; reason: ThinReason; length: number }[] = [];
   let thinCount = 0;
+  let midSentenceCount = 0;
 
   for await (const chunk of ctx.reader.streamChunks({ maxChunks: ctx.limits.maxChunks })) {
     let reason: ThinReason | null = null;
@@ -55,6 +58,7 @@ export async function runThinChunk(ctx: DetectorContext): Promise<ThinChunkResul
     else if (startsAndEndsMidSentence(chunk.contentSample)) reason = "midSentence";
     if (reason === null) continue;
     thinCount += 1;
+    if (reason === "midSentence") midSentenceCount += 1;
     if (flagged.length < MAX_FINDINGS) {
       flagged.push({
         ref: chunk.ref,
@@ -65,6 +69,7 @@ export async function runThinChunk(ctx: DetectorContext): Promise<ThinChunkResul
   }
 
   const corpusPct = ctx.totalChunks > 0 ? (thinCount / ctx.totalChunks) * 100 : 0;
+  const midSentencePct = ctx.totalChunks > 0 ? (midSentenceCount / ctx.totalChunks) * 100 : 0;
   const severity = corpusPct > WARNING_CORPUS_PCT ? "warning" : "info";
   const findings: FindingV1[] = flagged.map((f) => ({
     type: "thin_chunk",
@@ -79,6 +84,28 @@ export async function runThinChunk(ctx: DetectorContext): Promise<ThinChunkResul
     },
     affectedCount: 1,
   }));
+
+  if (
+    midSentenceCount >= MID_SENTENCE_SUMMARY_MIN_CHUNKS &&
+    midSentencePct >= MID_SENTENCE_SUMMARY_PCT
+  ) {
+    findings.unshift({
+      type: "thin_chunk",
+      severity: "warning",
+      title: "Many chunks look mechanically split mid-sentence",
+      evidence: {
+        totalChunks: ctx.totalChunks,
+        midSentenceChunks: midSentenceCount,
+        midSentencePct: Number(midSentencePct.toFixed(1)),
+        sampled: Boolean(ctx.sampled),
+      },
+      suggestedRepair: {
+        kind: "review_chunk_boundaries",
+        description: "Review the chunker separators and overlap; many rows look like sentence fragments, which makes retrieved context harder to trust.",
+      },
+      affectedCount: midSentenceCount,
+    });
+  }
 
   return { findings, thinCount, corpusPct };
 }

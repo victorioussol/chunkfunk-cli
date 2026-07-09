@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FindingV1, ReportV1 } from "@chunkfunk/core";
 import { reportV1Schema } from "@chunkfunk/core";
 import { capFindingEvidence, MAX_EXCERPT_CHARS } from "../src/scan/evidence";
+import { buildReport } from "../src/scan/build-report";
 import { renderHtml } from "../src/render/html";
 import { renderJson } from "../src/render/json";
 import { renderTerminal } from "../src/render/terminal";
@@ -84,6 +85,100 @@ describe("renderJson", () => {
     const report = baseReport();
     const out = renderJson(report);
     expect(() => reportV1Schema.parse(JSON.parse(out))).not.toThrow();
+  });
+});
+
+describe("buildReport", () => {
+  it("deduplicates fix-first actions by repair category", () => {
+    const report = buildReport({
+      mapping: baseReport().stack.mapping,
+      stackMeta: {
+        fingerprintHash: "abc",
+        frameworkGuess: "langchain",
+        embeddingDims: 1536,
+        embeddingModelGuess: null,
+      },
+      detector: {
+        score: 40,
+        scoreVersion: 1,
+        subscores: { freshness: null, duplication: 40, quality: 70, risk: 30, coverage: 80 },
+        stats: {
+          totalChunks: 100,
+          exactDuplicateGroups: 0,
+          exactDuplicateRows: 0,
+          exactDuplicatePct: 0,
+          nearDuplicatePairs: 0,
+          nearDuplicatePct: 0,
+          thinChunks: 0,
+          thinPct: 0,
+          riskyCritical: 3,
+          riskyWarning: 0,
+          nullEmbeddings: 0,
+          distinctEmbeddingDims: [1536],
+          largeChunksPct: 0,
+          staleDocsPct: null,
+        },
+        findings: [
+          {
+            type: "exact_duplicate",
+            severity: "critical",
+            title: "30.0% of the corpus is exact-duplicated",
+            evidence: { summary: true },
+            affectedCount: 30,
+          },
+          {
+            type: "exact_duplicate",
+            severity: "warning",
+            title: "3 chunks are exact duplicates",
+            evidence: { duplicateChunks: 3 },
+            affectedCount: 3,
+          },
+          {
+            type: "risky_chunk",
+            severity: "critical",
+            title: "Chunk contains what looks like a secret",
+            evidence: { ref: "a", kind: "secret" },
+            affectedCount: 1,
+          },
+          {
+            type: "risky_chunk",
+            severity: "critical",
+            title: "Chunk contains what looks like a secret",
+            evidence: { ref: "b", kind: "secret" },
+            affectedCount: 1,
+          },
+          {
+            type: "thin_chunk",
+            severity: "warning",
+            title: "Many chunks look mechanically split mid-sentence",
+            evidence: { midSentenceChunks: 12 },
+            suggestedRepair: {
+              kind: "review_chunk_boundaries",
+              description: "Review chunk boundaries.",
+            },
+            affectedCount: 12,
+          },
+        ],
+      },
+      totals: { documents: 10, chunks: 100, sources: 0 },
+      sources: [],
+      startedAt: "2026-07-02T09:00:00.000Z",
+      finishedAt: "2026-07-02T09:01:00.000Z",
+    });
+
+    expect(report.nextActions).toHaveLength(3);
+    expect(report.nextActions[0]).toMatchObject({
+      title: "30.0% of the corpus is exact-duplicated",
+      findingRefs: [0, 1],
+    });
+    expect(report.nextActions[1]).toMatchObject({
+      title: "Chunk contains what looks like a secret",
+      findingRefs: [2, 3],
+    });
+    expect(report.nextActions[2]).toMatchObject({
+      title: "Many chunks look mechanically split mid-sentence",
+      findingRefs: [4],
+    });
   });
 });
 

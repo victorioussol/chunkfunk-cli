@@ -10,6 +10,7 @@
  */
 import pg from "pg";
 import {
+  boundaryFragmentChunk,
   duplicateMember,
   healthyChunk,
   nearDuplicateText,
@@ -37,6 +38,7 @@ const DATABASES = {
   emptyDocs: "fixture_empty_documents",
   guiriLike: "fixture_guiri_like",
   structuredHealth: "fixture_structured_health",
+  boundaryHealth: "fixture_boundary_health",
 } as const;
 
 function dbUrl(database: string): string {
@@ -529,6 +531,53 @@ async function seedStructuredHealth(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Fixture I — boundary health. Looks like a normal generic pgvector table, but
+// many chunks start mid-sentence and end abruptly, making retrieval context hard
+// to trust even though metadata and embeddings exist.
+// ---------------------------------------------------------------------------
+async function seedBoundaryHealth(): Promise<void> {
+  await withClient(dbUrl(DATABASES.boundaryHealth), async (client) => {
+    await resetSchema(client);
+    await client.query(`
+      create table boundary_documents (
+        id uuid primary key default gen_random_uuid(),
+        content text not null,
+        embedding vector(${DIMS.boundaryHealth}),
+        metadata jsonb,
+        created_at timestamptz not null default now()
+      );
+    `);
+    const rng = mulberry32(0x424f554e);
+    await client.query("begin");
+
+    for (let i = 0; i < PLANTED.boundaryHealth.midSentenceFragments; i += 1) {
+      await client.query(
+        `insert into boundary_documents (content, embedding, metadata)
+         values ($1, $2, $3)`,
+        [
+          boundaryFragmentChunk(i),
+          toVectorLiteral(unitVector(DIMS.boundaryHealth, rng)),
+          JSON.stringify({ source: sourceUrl(i), section: "handbook" }),
+        ],
+      );
+    }
+
+    for (let i = 0; i < PLANTED.boundaryHealth.proseRows; i += 1) {
+      await client.query(
+        `insert into boundary_documents (content, embedding, metadata)
+         values ($1, $2, $3)`,
+        [
+          healthyChunk(900 + i),
+          toVectorLiteral(unitVector(DIMS.boundaryHealth, rng)),
+          JSON.stringify({ source: sourceUrl(900 + i), section: "handbook" }),
+        ],
+      );
+    }
+    await client.query("commit");
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Self-check — fail loudly if the seeded corpus drifts from README's contract.
 // ---------------------------------------------------------------------------
 async function scalar(client: pg.Client, sql: string): Promise<number> {
@@ -729,6 +778,22 @@ async function verify(): Promise<void> {
       );
     }
   });
+
+  await withClient(dbUrl(DATABASES.boundaryHealth), async (client) => {
+    const total = await scalar(client, "select count(*) from boundary_documents");
+    if (total !== DERIVED.boundaryHealthTotal) {
+      throw new Error(`boundary-health total ${total} !== ${DERIVED.boundaryHealthTotal}`);
+    }
+    const fragments = await scalar(
+      client,
+      "select count(*) from boundary_documents where content like 'and continues the handbook explanation%'",
+    );
+    if (fragments !== PLANTED.boundaryHealth.midSentenceFragments) {
+      throw new Error(
+        `boundary-health fragments ${fragments} !== ${PLANTED.boundaryHealth.midSentenceFragments}`,
+      );
+    }
+  });
 }
 
 async function main(): Promise<void> {
@@ -741,6 +806,7 @@ async function main(): Promise<void> {
   await seedEmptyDocs();
   await seedGuiriLike();
   await seedStructuredHealth();
+  await seedBoundaryHealth();
   await verify();
   console.log(
     `Seeded fixtures:\n` +
@@ -760,7 +826,9 @@ async function main(): Promise<void> {
       `(multi-table auto-detect target)\n` +
       `  ${DATABASES.structuredHealth}: ${DERIVED.structuredHealthTotal} chunks ` +
       `(${PLANTED.structuredHealth.tableLikeWithoutLocators} table-like without locators, ` +
-      `${PLANTED.structuredHealth.missingTimestampRows} missing timestamps)`,
+      `${PLANTED.structuredHealth.missingTimestampRows} missing timestamps)\n` +
+      `  ${DATABASES.boundaryHealth}: ${DERIVED.boundaryHealthTotal} chunks ` +
+      `(${PLANTED.boundaryHealth.midSentenceFragments} mid-sentence fragments)`,
   );
 }
 
