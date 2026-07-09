@@ -150,13 +150,97 @@ function looksTableLike(sample: string): boolean {
   );
 }
 
+function inventorySeverity(observed: number, expected: number): "critical" | "warning" {
+  if (expected === 0) return "warning";
+  return observed / expected < 0.5 ? "critical" : "warning";
+}
+
+function runInventoryArchitecture(ctx: DetectorContext): {
+  findings: FindingV1[];
+  coverageScore: number;
+} {
+  const inventory = ctx.inventory;
+  if (!inventory) return { findings: [], coverageScore: 100 };
+
+  const findings: FindingV1[] = [];
+  let coverageScore = 100;
+
+  if (inventory.minChunks !== undefined && ctx.totalChunks < inventory.minChunks) {
+    const missingChunks = inventory.minChunks - ctx.totalChunks;
+    const observedPct = inventory.minChunks === 0
+      ? 100
+      : (ctx.totalChunks / inventory.minChunks) * 100;
+    coverageScore = Math.min(coverageScore, Math.round(observedPct));
+    findings.push({
+      type: "architecture",
+      severity: inventorySeverity(ctx.totalChunks, inventory.minChunks),
+      title: "Indexed chunk count is below the configured inventory minimum",
+      evidence: {
+        expectedMinChunks: inventory.minChunks,
+        observedChunks: ctx.totalChunks,
+        missingChunks,
+        observedPct: Number(observedPct.toFixed(1)),
+      },
+      suggestedRepair: {
+        kind: "verify_ingestion_inventory",
+        description: "Compare the ingestion job output with the expected source inventory; rows may have been skipped, overwritten, or not yet indexed.",
+      },
+      affectedCount: missingChunks,
+    });
+  }
+
+  if (inventory.minDocuments !== undefined) {
+    if (inventory.observedDocuments === null || inventory.observedDocuments === undefined) {
+      findings.push({
+        type: "architecture",
+        severity: "info",
+        title: "Document inventory cannot be verified without a mapped document id",
+        evidence: {
+          expectedMinDocuments: inventory.minDocuments,
+          mappedDocumentId: false,
+        },
+        suggestedRepair: {
+          kind: "map_document_id",
+          description: "Map a stable document id column if you want ChunkFunk to compare indexed document counts with your expected inventory.",
+        },
+        affectedCount: 1,
+      });
+    } else if (inventory.observedDocuments < inventory.minDocuments) {
+      const missingDocuments = inventory.minDocuments - inventory.observedDocuments;
+      const observedPct = inventory.minDocuments === 0
+        ? 100
+        : (inventory.observedDocuments / inventory.minDocuments) * 100;
+      coverageScore = Math.min(coverageScore, Math.round(observedPct));
+      findings.push({
+        type: "architecture",
+        severity: inventorySeverity(inventory.observedDocuments, inventory.minDocuments),
+        title: "Indexed document count is below the configured inventory minimum",
+        evidence: {
+          expectedMinDocuments: inventory.minDocuments,
+          observedDocuments: inventory.observedDocuments,
+          missingDocuments,
+          observedPct: Number(observedPct.toFixed(1)),
+        },
+        suggestedRepair: {
+          kind: "verify_document_inventory",
+          description: "Compare the source/document inventory with indexed document ids; ingestion may have skipped, merged, or overwritten documents.",
+        },
+        affectedCount: missingDocuments,
+      });
+    }
+  }
+
+  return { findings, coverageScore };
+}
+
 async function runCorpusArchitecture(ctx: DetectorContext): Promise<{
   findings: FindingV1[];
   coverageScore: number | null;
   largeChunkPct: number;
   emptyTable: boolean;
 }> {
-  const findings: FindingV1[] = [];
+  const inventory = runInventoryArchitecture(ctx);
+  const findings: FindingV1[] = [...inventory.findings];
   const hasMappedMetadata = ctx.mapping.columns.metadata !== null;
   const hasMappedSourceLocator = ctx.mapping.columns.sourceUrl !== null || ctx.mapping.columns.documentId !== null;
 
@@ -236,7 +320,12 @@ async function runCorpusArchitecture(ctx: DetectorContext): Promise<{
       },
       affectedCount: 1,
     });
-    return { findings, coverageScore: 0, largeChunkPct: 0, emptyTable: true };
+    return {
+      findings,
+      coverageScore: Math.min(0, inventory.coverageScore),
+      largeChunkPct: 0,
+      emptyTable: true,
+    };
   }
 
   lengths.sort((a, b) => a - b);
@@ -409,10 +498,13 @@ async function runCorpusArchitecture(ctx: DetectorContext): Promise<{
           metadataCoverageScore(missingPct, mixedTypeKeys.length),
           sourceLocatorPct < 80 ? Math.round(sourceLocatorPct) : 100,
           tableLikeCoverageScore,
+          inventory.coverageScore,
         )
       : (sourceLocatorPct < 80
-          ? Math.min(Math.round(sourceLocatorPct), tableLikeCoverageScore)
-          : (tableLikeCoverageScore < 100 ? tableLikeCoverageScore : null)),
+          ? Math.min(Math.round(sourceLocatorPct), tableLikeCoverageScore, inventory.coverageScore)
+          : (Math.min(tableLikeCoverageScore, inventory.coverageScore) < 100
+              ? Math.min(tableLikeCoverageScore, inventory.coverageScore)
+              : null)),
     largeChunkPct,
     emptyTable: false,
   };

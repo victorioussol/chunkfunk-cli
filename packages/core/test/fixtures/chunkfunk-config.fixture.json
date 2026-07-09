@@ -25,6 +25,9 @@
       "locator": "https://docs.example.com/sitemap.xml"
     }
   ],
+  "inventory": {
+    "minChunks": 300
+  },
   "sync": {
     "enabled": false,
     "apiUrl": "https://chunkfunk.app"

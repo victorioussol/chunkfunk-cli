@@ -84,6 +84,13 @@ export interface DetectorLimits {
   nearDupProbes: number;
 }
 
+export interface InventoryExpectations {
+  minChunks?: number;
+  minDocuments?: number;
+  /** Null when document counts cannot be measured because no document id is mapped. */
+  observedDocuments?: number | null;
+}
+
 export const DEFAULT_THRESHOLDS: DetectorThresholds = {
   nearDuplicateCosine: 0.97,
   thinChunkMinChars: 120,
@@ -106,6 +113,8 @@ export interface DetectorContext {
   sampled?: boolean;
   /** Corpus size (pre-sampling), used for corpus-rate calculations. */
   totalChunks: number;
+  /** Optional operator-provided inventory expectations; never inferred. */
+  inventory?: InventoryExpectations;
 }
 
 export interface Detector {

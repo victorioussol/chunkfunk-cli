@@ -28,6 +28,7 @@ The full loop covers:
 - fresh-user `init --yes` and `scan --json`
 - JSON stdout staying clean while progress logs go to stderr
 - `scan --ci --min-score` pass/fail exit codes
+- explicit inventory drift from `chunkfunk.yaml`
 - `--show-telemetry` payload inspection
 - LangChain PGVector, LlamaIndex PGVector, Supabase docs-tutorial, Guiri-like
   multi-table, metadata-health, empty-ingestion, and structured-data fixtures

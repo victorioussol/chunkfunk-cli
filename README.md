@@ -25,6 +25,7 @@ The first scan focuses on database-level problems that usually send RAG builders
 into manual debugging:
 
 - empty or partially failed ingestion
+- indexed counts below an explicit inventory minimum you provide
 - duplicate, near-duplicate, thin, or oversized chunks
 - missing source/citation locators
 - table-like chunks without source/page/sheet/row traceability
@@ -65,6 +66,20 @@ If your vectors live in another schema, repeat the schema grants for that schema
 | Generic single table | One vector column plus one long text-like column | Proposed, then confirmed |
 
 If your schema does not match, `chunkfunk init` asks you to map the columns manually.
+
+## Optional inventory checks
+
+ChunkFunk will not guess how many rows your ingestion job should have produced.
+If you know the expected minimum, add it to `chunkfunk.yaml`:
+
+```yaml
+inventory:
+  minChunks: 400
+  minDocuments: 50
+```
+
+The scan will compare those numbers with the indexed rows it can observe and
+report a count gap without printing source names or document content.
 
 ## Privacy and telemetry
 

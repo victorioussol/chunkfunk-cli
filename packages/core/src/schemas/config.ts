@@ -12,6 +12,15 @@ export const sourceKindSchema = z.enum([
 
 export type SourceKind = z.infer<typeof sourceKindSchema>;
 
+const inventoryExpectationsSchema = z
+  .object({
+    minChunks: z.number().int().nonnegative().optional(),
+    minDocuments: z.number().int().nonnegative().optional(),
+  })
+  .refine((value) => value.minChunks !== undefined || value.minDocuments !== undefined, {
+    message: "inventory must include minChunks or minDocuments",
+  });
+
 /**
  * `chunkfunk.yaml` (§3.3). `connection.env` holds the NAME of an env var —
  * the connection string itself is never stored.
@@ -29,10 +38,11 @@ export const chunkfunkConfigV1Schema = z.object({
     .array(
       z.object({
         kind: sourceKindSchema,
-        locator: z.string().min(1),
-      }),
-    )
+      locator: z.string().min(1),
+    }),
+  )
     .optional(),
+  inventory: inventoryExpectationsSchema.optional(),
   sync: z
     .object({
       enabled: z.boolean().default(false),
