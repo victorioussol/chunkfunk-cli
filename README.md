@@ -103,6 +103,8 @@ npx chunkfunk --show-telemetry
 
 The full published payload contract is in [TELEMETRY.md](TELEMETRY.md).
 
+A normal `chunkfunk scan` always stays local, even after you log in. A report leaves your machine only when you explicitly run `chunkfunk sync`.
+
 `chunkfunk login` and `chunkfunk sync` point at `https://chunkfunk.app`.
 
 ## Example report

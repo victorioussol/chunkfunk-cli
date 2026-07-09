@@ -172,6 +172,51 @@ telemetry: true
     }
   }, 180_000);
 
+  it("ordinary scans stay local after login", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "chunkfunk-local-scan-"));
+    const configDir = await mkdtemp(join(tmpdir(), "chunkfunk-local-scan-config-"));
+    let requestCount = 0;
+
+    const server = createServer((_request: IncomingMessage, response: ServerResponse) => {
+      requestCount += 1;
+      response.writeHead(500);
+      response.end();
+    });
+    const port = await listen(server);
+    const env = { CHUNKFUNK_CONFIG_DIR: configDir };
+
+    try {
+      const firstScan = await runCli(["scan", "--json", "--yes"], dir, "fixture_langchain", env);
+      expect(firstScan.code).toBe(0);
+
+      const configPath = join(dir, "chunkfunk.yaml");
+      const config = await readFile(configPath, "utf8");
+      await writeFile(
+        configPath,
+        `${config.trimEnd()}
+sync:
+  enabled: true
+  apiUrl: http://127.0.0.1:${port}
+telemetry: false
+`,
+        "utf8",
+      );
+
+      expect(
+        (await runCli(["login", "--token", "cfunk_scan_e2e"], dir, "fixture_langchain", env)).code,
+      ).toBe(0);
+
+      const scan = await runCli(["scan", "--yes"], dir, "fixture_langchain", env);
+      expect(scan.code).toBe(0);
+      expect(scan.stderr).not.toContain("Sync this scan");
+      expect(requestCount).toBe(0);
+    } finally {
+      await close(server);
+      await rm(dir, { recursive: true, force: true });
+      await rm(configDir, { recursive: true, force: true });
+    }
+  }, 180_000);
+
   it("login + sync invoke the real CLI binary and post ReportV1 from outside the repo", async () => {
     const dir = await mkdtemp(join(tmpdir(), "chunkfunk-sync-"));
     const configDir = await mkdtemp(join(tmpdir(), "chunkfunk-sync-config-"));

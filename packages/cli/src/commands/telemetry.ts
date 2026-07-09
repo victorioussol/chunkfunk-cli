@@ -14,7 +14,6 @@ export async function runShowTelemetry(options: ShowTelemetryOptions = {}) {
     dir: options.dir,
     nonInteractive: true,
     render: false,
-    offerSync: false,
     offerTelemetry: false,
     stdout: () => undefined,
     stderr,

@@ -23,8 +23,7 @@ import { buildReport } from "../scan/build-report";
 import { renderHtml } from "../render/html";
 import { renderJson } from "../render/json";
 import { renderTerminal } from "../render/terminal";
-import { DEFAULT_API_URL, readCredentials } from "../auth/credentials";
-import { syncReport } from "../sync/client";
+import { DEFAULT_API_URL } from "../auth/credentials";
 import { buildTelemetryPayload, type TelemetryRecipeId } from "../telemetry/payload";
 import { sendTelemetry } from "../telemetry/client";
 import { confirm as confirmPrompt } from "@inquirer/prompts";
@@ -43,9 +42,7 @@ export interface ScanOptions {
   minScore?: number;
   nonInteractive?: boolean;
   render?: boolean;
-  offerSync?: boolean;
   offerTelemetry?: boolean;
-  syncPrompt?: (message: string) => Promise<boolean>;
   telemetryPrompt?: (message: string) => Promise<boolean>;
   telemetryFetchFn?: typeof fetch;
   prompts?: IntrospectPrompts;
@@ -93,9 +90,7 @@ export async function runScan(options: ScanOptions = {}): Promise<ScanResult> {
     minScore = DEFAULT_MIN_SCORE,
     nonInteractive = json || ci,
     render = true,
-    offerSync = true,
     offerTelemetry = true,
-    syncPrompt = (message) => confirmPrompt({ message, default: true }),
     telemetryPrompt = (message) => confirmPrompt({ message, default: false }),
     telemetryFetchFn,
     prompts = inquirerPrompts,
@@ -201,17 +196,6 @@ export async function runScan(options: ScanOptions = {}): Promise<ScanResult> {
       stderr(`Wrote HTML report to ${htmlPath}\n`);
     }
 
-    if (render && offerSync && !json && !ci) {
-      const credentials = await readCredentials();
-      if (credentials && (await syncPrompt("Sync this scan to ChunkFunk?"))) {
-        const response = await syncReport({
-          credentials,
-          report,
-          apiUrl: config?.sync?.apiUrl ?? DEFAULT_API_URL,
-        });
-        stderr(`Synced scan ${response.scanId}\n`);
-      }
-    }
 
     let telemetryEnabled = telemetryConfigured && config?.telemetry === true;
     if (offerTelemetry && !json && !ci && !nonInteractive && !telemetryConfigured) {
