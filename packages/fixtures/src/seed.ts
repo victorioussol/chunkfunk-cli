@@ -16,6 +16,7 @@ import {
   secretChunk,
   sourceUrl,
   summaryText,
+  tableLikeChunk,
   thinChunk,
 } from "./content";
 import { DERIVED, DIMS, FAKE_SECRETS, PLANTED } from "./planted";
@@ -35,6 +36,7 @@ const DATABASES = {
   metadataHealth: "fixture_metadata_health",
   emptyDocs: "fixture_empty_documents",
   guiriLike: "fixture_guiri_like",
+  structuredHealth: "fixture_structured_health",
 } as const;
 
 function dbUrl(database: string): string {
@@ -460,6 +462,73 @@ async function seedGuiriLike(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Fixture H — structured/table-like RAG rot. Looks like a normal generic
+// pgvector table, but many table-like chunks lack row/source locators and
+// timestamps, mirroring PDF/CSV/spreadsheet retrieval pain.
+// ---------------------------------------------------------------------------
+async function seedStructuredHealth(): Promise<void> {
+  await withClient(dbUrl(DATABASES.structuredHealth), async (client) => {
+    await resetSchema(client);
+    await client.query(`
+      create table structured_documents (
+        id uuid primary key default gen_random_uuid(),
+        content text not null,
+        embedding vector(${DIMS.structuredHealth}),
+        metadata jsonb,
+        created_at timestamptz
+      );
+    `);
+    const rng = mulberry32(0x574f524b);
+    await client.query("begin");
+
+    let row = 0;
+    const insert = async (content: string, metadata: unknown, createdAt: string | null) => {
+      await client.query(
+        `insert into structured_documents (content, embedding, metadata, created_at)
+         values ($1, $2, $3, $4)`,
+        [
+          content,
+          toVectorLiteral(unitVector(DIMS.structuredHealth, rng)),
+          JSON.stringify(metadata),
+          createdAt,
+        ],
+      );
+      row += 1;
+    };
+
+    for (let i = 0; i < PLANTED.structuredHealth.tableLikeWithoutLocators; i += 1) {
+      await insert(tableLikeChunk(i), { tenant_id: i % 2 === 0 ? "tenant-a" : "tenant-b" }, null);
+    }
+
+    for (let i = 0; i < PLANTED.structuredHealth.tableLikeWithLocators; i += 1) {
+      await insert(
+        tableLikeChunk(100 + i),
+        {
+          source: sourceUrl(100 + i),
+          sheet_name: "renewals",
+          row_id: `row-${i}`,
+          page_number: i + 1,
+        },
+        new Date(Date.UTC(2026, 6, 1 + (i % 5))).toISOString(),
+      );
+    }
+
+    for (let i = 0; i < PLANTED.structuredHealth.proseRows; i += 1) {
+      await insert(
+        healthyChunk(700 + i),
+        { source: sourceUrl(700 + i), topic: "structured-health" },
+        new Date(Date.UTC(2026, 6, 8)).toISOString(),
+      );
+    }
+
+    if (row !== DERIVED.structuredHealthTotal) {
+      throw new Error(`structured-health staged rows ${row} !== ${DERIVED.structuredHealthTotal}`);
+    }
+    await client.query("commit");
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Self-check — fail loudly if the seeded corpus drifts from README's contract.
 // ---------------------------------------------------------------------------
 async function scalar(client: pg.Client, sql: string): Promise<number> {
@@ -615,6 +684,51 @@ async function verify(): Promise<void> {
       throw new Error(`guiri-like internal chunks ${internal} !== ${PLANTED.guiriLike.internalChunks * 2}`);
     }
   });
+
+  await withClient(dbUrl(DATABASES.structuredHealth), async (client) => {
+    const total = await scalar(client, "select count(*) from structured_documents");
+    if (total !== DERIVED.structuredHealthTotal) {
+      throw new Error(`structured-health total ${total} !== ${DERIVED.structuredHealthTotal}`);
+    }
+    const tableLike = await scalar(
+      client,
+      "select count(*) from structured_documents where content like '%| product_code | region | renewal_status |%'",
+    );
+    const expectedTableLike =
+      PLANTED.structuredHealth.tableLikeWithoutLocators +
+      PLANTED.structuredHealth.tableLikeWithLocators;
+    if (tableLike !== expectedTableLike) {
+      throw new Error(`structured-health table-like rows ${tableLike} !== ${expectedTableLike}`);
+    }
+    const missingTimestamps = await scalar(
+      client,
+      "select count(*) from structured_documents where created_at is null",
+    );
+    if (missingTimestamps !== PLANTED.structuredHealth.missingTimestampRows) {
+      throw new Error(
+        `structured-health missing timestamps ${missingTimestamps} !== ` +
+          `${PLANTED.structuredHealth.missingTimestampRows}`,
+      );
+    }
+    const tableLikeMissingLocators = await scalar(
+      client,
+      `select count(*) from structured_documents
+       where content like '%| product_code | region | renewal_status |%'
+         and not (
+           metadata ? 'source'
+           or metadata ? 'source_url'
+           or metadata ? 'row_id'
+           or metadata ? 'page_number'
+           or metadata ? 'sheet_name'
+         )`,
+    );
+    if (tableLikeMissingLocators !== PLANTED.structuredHealth.tableLikeWithoutLocators) {
+      throw new Error(
+        `structured-health table-like missing locators ${tableLikeMissingLocators} !== ` +
+          `${PLANTED.structuredHealth.tableLikeWithoutLocators}`,
+      );
+    }
+  });
 }
 
 async function main(): Promise<void> {
@@ -626,6 +740,7 @@ async function main(): Promise<void> {
   await seedMetadataHealth();
   await seedEmptyDocs();
   await seedGuiriLike();
+  await seedStructuredHealth();
   await verify();
   console.log(
     `Seeded fixtures:\n` +
@@ -642,7 +757,10 @@ async function main(): Promise<void> {
       `${PLANTED.metadataHealth.largeChunkRows} large chunks, mixed filter types)\n` +
       `  ${DATABASES.emptyDocs}: ${PLANTED.emptyDocs.total} chunks (empty ingestion target)\n` +
       `  ${DATABASES.guiriLike}: ${PLANTED.guiriLike.documentChunks} chunks ` +
-      `(multi-table auto-detect target)`,
+      `(multi-table auto-detect target)\n` +
+      `  ${DATABASES.structuredHealth}: ${DERIVED.structuredHealthTotal} chunks ` +
+      `(${PLANTED.structuredHealth.tableLikeWithoutLocators} table-like without locators, ` +
+      `${PLANTED.structuredHealth.missingTimestampRows} missing timestamps)`,
   );
 }
 

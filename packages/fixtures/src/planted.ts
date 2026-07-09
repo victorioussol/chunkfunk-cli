@@ -53,6 +53,13 @@ export const PLANTED = {
     internalChunks: 8,
     cacheRows: 20,
   },
+  /** Fixture H proves table-like chunk and partial-timestamp diagnostics. */
+  structuredHealth: {
+    tableLikeWithoutLocators: 20,
+    tableLikeWithLocators: 10,
+    proseRows: 18,
+    missingTimestampRows: 20,
+  },
 } as const;
 
 export const DIMS = {
@@ -65,6 +72,7 @@ export const DIMS = {
   emptyDocs: 1536,
   guiriLikeCurrent: 1536,
   guiriLikeNext: 3072,
+  structuredHealth: 1536,
 } as const;
 
 /** Derived totals, exported for README cross-checking and the seed self-check. */
@@ -82,6 +90,10 @@ export const DERIVED = {
     PLANTED.llamaindex.healthy +
     PLANTED.llamaindex.mixedDimRows +
     PLANTED.llamaindex.nullEmbeddingRows, // 53
+  structuredHealthTotal:
+    PLANTED.structuredHealth.tableLikeWithoutLocators +
+    PLANTED.structuredHealth.tableLikeWithLocators +
+    PLANTED.structuredHealth.proseRows, // 48
 } as const;
 
 /** Fake, non-functional secrets planted in fixture A. NEVER real credentials. */

@@ -283,6 +283,29 @@ if (!fixtureBaseUrl) {
     assert(titles.includes("Many chunks are very large"), "expected oversized chunk finding");
   });
 
+  await step("flags structured RAG rot without leaking table values", async () => {
+    const dir = join(tempRoot, "structured-health");
+    await mkdir(dir, { recursive: true });
+    const env = cleanEnv({ DATABASE_URL: databaseUrl("fixture_structured_health") });
+    const result = await run(chunkfunkBin, ["scan", "--json", "--yes"], { cwd: dir, env });
+    assert(result.code === 0, result.stderr || result.stdout);
+    assert(!result.stdout.includes("tenant-a"), "report must not print tenant values");
+    assert(!result.stdout.includes("SKU-"), "report must not print table row values");
+    const report = parseJson(result.stdout, "structured-health scan");
+    assert(report.totals.chunks === 48, `expected 48 chunks, got ${report.totals.chunks}`);
+    assert(report.stack.mapping.table === "public.structured_documents", "expected structured_documents mapping");
+    const titles = report.findings.map((finding) => finding.title);
+    assert(
+      titles.includes("Table-like chunks are missing source/citation locators"),
+      "expected table-like locator finding",
+    );
+    assert(
+      titles.includes("Many chunks have no timestamp, so freshness is partial"),
+      "expected partial timestamp finding",
+    );
+    assert(report.health.score < 100, "structured-health warnings should lower the headline health score");
+  });
+
   await step("reports an empty ingested table clearly", async () => {
     const dir = join(tempRoot, "empty-documents");
     await mkdir(dir, { recursive: true });

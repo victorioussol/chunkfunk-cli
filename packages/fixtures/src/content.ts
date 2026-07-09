@@ -85,6 +85,19 @@ export function summaryText(i: number): string {
   return `Summary of the ${topic} section: covers setup, common pitfalls, and the recommended defaults for production use across typical workspace sizes.`;
 }
 
+/** A markdown-table-like chunk for structured-data health fixtures. */
+export function tableLikeChunk(i: number): string {
+  const code = 1000 + i;
+  return [
+    "| product_code | region | renewal_status | owner_group |",
+    "| --- | --- | --- | --- |",
+    `| SKU-${code} | EU | active | support-${i % 3} |`,
+    `| SKU-${code + 1} | US | paused | success-${i % 2} |`,
+    `| SKU-${code + 2} | APAC | review | operations-${i % 4} |`,
+    "This structured extract is used by retrieval to answer account and renewal questions.",
+  ].join("\n");
+}
+
 export function sourceUrl(i: number): string {
   return `https://docs.example.com/${TOPICS[i % TOPICS.length].replace(/ /g, "-")}/${i}`;
 }

@@ -202,6 +202,47 @@ describe("freshness", () => {
     expect(result.findings.some((f) => f.type === "stale_document")).toBe(true);
     expect(result.staleDocsPct).toBe(50);
   });
+
+  it("warns when a mapped timestamp column is only partly populated", async () => {
+    const chunks: MockChunk[] = [
+      { ref: "dated", content: LONG, updatedAt: "2026-07-02T00:00:00.000Z" },
+      { ref: "missing-1", content: LONG, updatedAt: null },
+      { ref: "missing-2", content: LONG, updatedAt: null },
+      { ref: "missing-3", content: LONG, updatedAt: null },
+    ];
+    const result = await runFreshness(
+      ctx(chunks, {
+        mapping: mapping({ updatedAt: "updated_at" }),
+      }),
+    );
+
+    const finding = result.findings.find(
+      (f) => f.title === "Many chunks have no timestamp, so freshness is partial",
+    );
+    expect(finding?.severity).toBe("warning");
+    expect(finding?.evidence).toMatchObject({
+      scannedChunks: 4,
+      timestampedChunks: 1,
+      missingTimestampChunks: 3,
+      missingTimestampPct: 75,
+    });
+    expect(result.staleDocsPct).toBe(75);
+  });
+
+  it("keeps freshness unmeasurable when the mapped timestamp column is empty", async () => {
+    const chunks: MockChunk[] = [
+      { ref: "missing-1", content: LONG, updatedAt: null },
+      { ref: "missing-2", content: LONG, updatedAt: null },
+    ];
+    const result = await runFreshness(
+      ctx(chunks, {
+        mapping: mapping({ updatedAt: "updated_at" }),
+      }),
+    );
+
+    expect(result.findings.find((f) => f.title === "Mapped timestamp column is empty")?.severity).toBe("warning");
+    expect(result.staleDocsPct).toBeNull();
+  });
 });
 
 describe("embedding-integrity", () => {
@@ -283,6 +324,39 @@ describe("architecture", () => {
     expect(citation?.severity).toBe("warning");
     expect(JSON.stringify(citation)).toContain("sourceLocatorRows");
     expect(JSON.stringify(result.findings)).not.toContain("team-a");
+  });
+
+  it("flags table-like chunks without exposing row values", async () => {
+    const table = [
+      "| product_code | region | renewal_status |",
+      "| --- | --- | --- |",
+      "| SKU-1001 | EU | active |",
+      "| SKU-1002 | US | paused |",
+      "| SKU-1003 | APAC | review |",
+    ].join("\n");
+    const chunks: MockChunk[] = [];
+    for (let i = 0; i < 6; i += 1) {
+      chunks.push({
+        ref: `table-${i}`,
+        content: table,
+        metadata: { tenant_id: "team-a" },
+      });
+    }
+    chunks.push({ ref: "ok", content: LONG, metadata: { source: "docs" } });
+
+    const result = await runArchitecture(ctx(chunks));
+    const finding = result.findings.find(
+      (f) => f.title === "Table-like chunks are missing source/citation locators",
+    );
+    expect(finding?.severity).toBe("warning");
+    expect(finding?.affectedCount).toBe(6);
+    expect(finding?.evidence).toMatchObject({
+      tableLikeChunks: 6,
+      tableLikeWithoutLocator: 6,
+    });
+    const serialized = JSON.stringify(finding);
+    expect(serialized).not.toContain("SKU-1001");
+    expect(serialized).not.toContain("team-a");
   });
 
   it("hashes uncommon metadata keys before they can leave the process", async () => {

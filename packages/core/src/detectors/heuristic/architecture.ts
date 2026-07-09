@@ -42,11 +42,34 @@ const SOURCE_LOCATOR_KEYS = new Set([
   "source_id",
 ]);
 
+const STRUCTURED_LOCATOR_KEYS = new Set([
+  ...SOURCE_LOCATOR_KEYS,
+  "page",
+  "page_number",
+  "page_label",
+  "sheet",
+  "sheet_name",
+  "row",
+  "row_id",
+  "row_number",
+  "column",
+  "column_id",
+  "column_name",
+  "slide",
+  "slide_number",
+  "cell",
+  "range",
+  "section",
+]);
+
 const SPARSE_METADATA_WARNING_PCT = 20;
 const INCONSISTENT_KEY_MIN_ROWS = 10;
 const MIXED_TYPE_MIN_ROWS = 5;
 const LARGE_CHUNK_CHARS = 4_000;
 const LARGE_CHUNK_WARNING_PCT = 20;
+const TABLE_LIKE_WARNING_MIN_CHUNKS = 5;
+const TABLE_LIKE_WARNING_PCT = 10;
+const TABLE_LIKE_MISSING_LOCATOR_WARNING_PCT = 50;
 
 export interface ArchitectureResult {
   findings: FindingV1[];
@@ -87,6 +110,46 @@ function percentile(sorted: number[], pct: number): number {
   return sorted[index];
 }
 
+function delimiterColumns(line: string, delimiter: string): number {
+  return line
+    .split(delimiter)
+    .map((cell) => cell.trim())
+    .filter(Boolean).length;
+}
+
+function repeatedDelimitedRows(lines: string[], delimiter: string): boolean {
+  const rows = lines
+    .filter((line) => line.length <= 220)
+    .map((line) => delimiterColumns(line, delimiter))
+    .filter((columns) => columns >= 3);
+  return rows.length >= 3 && new Set(rows).size <= 2;
+}
+
+function isMarkdownTable(lines: string[]): boolean {
+  const pipeRows = lines
+    .map((line) => delimiterColumns(line, "|"))
+    .filter((columns) => columns >= 3);
+  return pipeRows.length >= 3 || (
+    pipeRows.length >= 2 &&
+    lines.some((line) => /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line))
+  );
+}
+
+function looksTableLike(sample: string): boolean {
+  const lines = sample
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 24);
+
+  if (lines.length < 3) return false;
+  return (
+    isMarkdownTable(lines) ||
+    repeatedDelimitedRows(lines, "\t") ||
+    repeatedDelimitedRows(lines, ",")
+  );
+}
+
 async function runCorpusArchitecture(ctx: DetectorContext): Promise<{
   findings: FindingV1[];
   coverageScore: number | null;
@@ -118,6 +181,8 @@ async function runCorpusArchitecture(ctx: DetectorContext): Promise<{
   let missing = 0;
   let sourceLocatorRows = 0;
   let largeChunks = 0;
+  let tableLikeChunks = 0;
+  let tableLikeWithoutLocator = 0;
   const lengths: number[] = [];
   const keyCounts = new Map<string, number>();
   const typeCountsByKey = new Map<string, Map<string, number>>();
@@ -128,8 +193,15 @@ async function runCorpusArchitecture(ctx: DetectorContext): Promise<{
     if (chunk.length >= LARGE_CHUNK_CHARS) largeChunks += 1;
     const metadata = chunk.metadata;
     const keys = metadata ? Object.keys(metadata) : [];
-    if (hasMappedSourceLocator || keys.some((key) => SOURCE_LOCATOR_KEYS.has(key))) {
+    const hasSourceLocator = hasMappedSourceLocator || keys.some((key) => SOURCE_LOCATOR_KEYS.has(key));
+    if (hasSourceLocator) {
       sourceLocatorRows += 1;
+    }
+    if (looksTableLike(chunk.contentSample)) {
+      tableLikeChunks += 1;
+      const hasStructuredLocator = hasMappedSourceLocator ||
+        keys.some((key) => STRUCTURED_LOCATOR_KEYS.has(key));
+      if (!hasStructuredLocator) tableLikeWithoutLocator += 1;
     }
     if (keys.length === 0) {
       missing += 1;
@@ -296,14 +368,51 @@ async function runCorpusArchitecture(ctx: DetectorContext): Promise<{
     });
   }
 
+  const tableLikePct = (tableLikeChunks / scanned) * 100;
+  const tableLikeMissingLocatorPct = tableLikeChunks > 0
+    ? (tableLikeWithoutLocator / tableLikeChunks) * 100
+    : 0;
+  if (
+    tableLikeChunks >= TABLE_LIKE_WARNING_MIN_CHUNKS &&
+    tableLikePct >= TABLE_LIKE_WARNING_PCT &&
+    tableLikeMissingLocatorPct >= TABLE_LIKE_MISSING_LOCATOR_WARNING_PCT
+  ) {
+    findings.push({
+      type: "architecture",
+      severity: "warning",
+      title: "Table-like chunks are missing source/citation locators",
+      evidence: {
+        scannedChunks: scanned,
+        tableLikeChunks,
+        tableLikePct: Number(tableLikePct.toFixed(1)),
+        tableLikeWithoutLocator,
+        tableLikeWithoutLocatorPct: Number(tableLikeMissingLocatorPct.toFixed(1)),
+        checkedMetadataKeys: [...STRUCTURED_LOCATOR_KEYS].sort(),
+        sampled: Boolean(ctx.sampled),
+      },
+      suggestedRepair: {
+        kind: "add_structured_locators",
+        description: "Store source, page, sheet, row, or slide locators with table-like chunks so bad answers can be traced back to the exact structured record.",
+      },
+      affectedCount: tableLikeWithoutLocator,
+    });
+  }
+
+  const tableLikeCoverageScore = tableLikeChunks > 0 && tableLikeMissingLocatorPct >= TABLE_LIKE_MISSING_LOCATOR_WARNING_PCT
+    ? Math.round(100 - tableLikeMissingLocatorPct)
+    : 100;
+
   return {
     findings,
     coverageScore: hasMappedMetadata
       ? Math.min(
           metadataCoverageScore(missingPct, mixedTypeKeys.length),
           sourceLocatorPct < 80 ? Math.round(sourceLocatorPct) : 100,
+          tableLikeCoverageScore,
         )
-      : (sourceLocatorPct < 80 ? Math.round(sourceLocatorPct) : null),
+      : (sourceLocatorPct < 80
+          ? Math.min(Math.round(sourceLocatorPct), tableLikeCoverageScore)
+          : (tableLikeCoverageScore < 100 ? tableLikeCoverageScore : null)),
     largeChunkPct,
     emptyTable: false,
   };

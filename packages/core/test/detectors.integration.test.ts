@@ -101,6 +101,19 @@ const MAPPINGS: Record<string, MappingV1> = {
       updatedAt: null,
     },
   },
+  fixture_structured_health: {
+    version: 1,
+    dialect: "pgvector",
+    table: "public.structured_documents",
+    columns: {
+      content: "content",
+      embedding: "embedding",
+      metadata: "metadata",
+      documentId: null,
+      sourceUrl: null,
+      updatedAt: "created_at",
+    },
+  },
 };
 
 describe.skipIf(!BASE)("detectors vs fixtures", () => {
@@ -132,6 +145,7 @@ describe.skipIf(!BASE)("detectors vs fixtures", () => {
   let supabaseDocs: Awaited<ReturnType<typeof runHeuristicDetectors>>;
   let metadataHealth: Awaited<ReturnType<typeof runHeuristicDetectors>>;
   let emptyDocs: Awaited<ReturnType<typeof runHeuristicDetectors>>;
+  let structuredHealth: Awaited<ReturnType<typeof runHeuristicDetectors>>;
 
   beforeAll(async () => {
     langchain = (await run("fixture_langchain")).result;
@@ -140,6 +154,7 @@ describe.skipIf(!BASE)("detectors vs fixtures", () => {
     supabaseDocs = (await run("fixture_supabase_docs")).result;
     metadataHealth = (await run("fixture_metadata_health")).result;
     emptyDocs = (await run("fixture_empty_documents")).result;
+    structuredHealth = (await run("fixture_structured_health")).result;
   }, 120_000);
 
   afterAll(async () => {
@@ -250,6 +265,31 @@ describe.skipIf(!BASE)("detectors vs fixtures", () => {
       expect(emptyDocs.subscores.coverage).toBe(0);
       expect(emptyDocs.subscores.quality).toBe(0);
       expect(emptyDocs.score).toBeLessThan(80);
+    });
+  });
+
+  describe("fixture_structured_health (table-like chunks and timestamp coverage)", () => {
+    it("flags table-like chunks without leaking row or tenant values", () => {
+      const finding = structuredHealth.findings.find(
+        (f) => f.title === "Table-like chunks are missing source/citation locators",
+      );
+      expect(finding?.severity).toBe("warning");
+      expect(finding?.affectedCount).toBe(20);
+      const serialized = JSON.stringify(finding);
+      expect(serialized).toContain("tableLikeWithoutLocator");
+      expect(serialized).not.toContain("SKU-");
+      expect(serialized).not.toContain("tenant-a");
+      expect(structuredHealth.subscores.coverage).toBeLessThan(100);
+    });
+
+    it("flags partial timestamp coverage and lowers freshness confidence", () => {
+      const finding = structuredHealth.findings.find(
+        (f) => f.title === "Many chunks have no timestamp, so freshness is partial",
+      );
+      expect(finding?.severity).toBe("warning");
+      expect(finding?.affectedCount).toBe(20);
+      expect(structuredHealth.stats.staleDocsPct).toBeCloseTo(41.666, 2);
+      expect(structuredHealth.subscores.freshness).toBeLessThan(100);
     });
   });
 });

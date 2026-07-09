@@ -29,7 +29,8 @@ The full loop covers:
 - JSON stdout staying clean while progress logs go to stderr
 - `scan --ci --min-score` pass/fail exit codes
 - `--show-telemetry` payload inspection
-- LangChain PGVector, LlamaIndex PGVector, and Supabase docs-tutorial fixtures
+- LangChain PGVector, LlamaIndex PGVector, Supabase docs-tutorial, Guiri-like
+  multi-table, metadata-health, empty-ingestion, and structured-data fixtures
 
 ## Testing a dev database
 

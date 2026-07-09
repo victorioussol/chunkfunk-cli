@@ -35,6 +35,7 @@ Each fixture is its own database so introspection sees one RAG system per connec
 | `fixture_metadata_health` | `generic-single-table` (auto) | `metadata_documents` | 1536 | `created_at` |
 | `fixture_empty_documents` | `supabase-docs-tutorial` (auto) | `documents` | 1536 | none |
 | `fixture_guiri_like` | `generic-single-table` (auto-ranked) | `document_chunks`, `embedding_cache`, `chunkfunk_chunks`, `sprigkeeper_chunks` | 1536 + 3072 | `created_at` |
+| `fixture_structured_health` | `generic-single-table` (auto) | `structured_documents` | 1536 | `created_at` |
 
 ## Planted problems (exact counts)
 
@@ -100,6 +101,20 @@ when several vector-bearing tables exist:
 The expected auto-detected mapping is `public.document_chunks` with `content` +
 `embedding`; ambiguous bespoke schemas should still fall back to the interactive
 picker.
+
+### `fixture_structured_health` — table-like chunks + partial timestamps (48 chunks)
+
+Production-like structured-data fixture for PDF/CSV/spreadsheet RAG pain:
+
+| Problem | Count | Purpose |
+|---|---:|---|
+| Table-like chunks without source/page/sheet/row locators | **20** | Proves structured chunks can be flagged without printing table row values |
+| Table-like chunks with locators | **10** | Proves the detector distinguishes healthier structured chunks |
+| Prose rows with locators | **18** | Keeps the table-like warning from being a whole-corpus false positive |
+| Missing timestamps in mapped `created_at` column | **20** | Proves freshness is partial when timestamp coverage is incomplete |
+
+The smoke test asserts that reports do not leak planted tenant values or table
+row values from this fixture.
 
 ## Requirements
 

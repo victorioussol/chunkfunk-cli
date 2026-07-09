@@ -110,6 +110,20 @@ describe.skipIf(!BASE)("introspection vs fixtures", () => {
     expect(result.embeddingDims).toBe(1536);
   });
 
+  it("auto-detects structured-health fixture as a generic pgvector table", async () => {
+    const result = await introspectFixture("fixture_structured_health", {
+      yes: true,
+      prompts: throwingPrompts,
+    });
+    expect(result.recipeId).toBe("generic-single-table");
+    expect(result.mapping.table).toBe("public.structured_documents");
+    expect(result.mapping.columns.content).toBe("content");
+    expect(result.mapping.columns.embedding).toBe("embedding");
+    expect(result.mapping.columns.metadata).toBe("metadata");
+    expect(result.mapping.columns.sourceUrl).toBeNull();
+    expect(result.mapping.columns.updatedAt).toBe("created_at");
+  });
+
   it("does not guess when a bespoke schema has ambiguous long text columns", async () => {
     await expect(
       introspectFixture("fixture_custom", {
