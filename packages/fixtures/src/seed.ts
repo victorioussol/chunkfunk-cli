@@ -1,5 +1,5 @@
 /**
- * Seeds the four ChunkFunk fixture databases deterministically (PR-02).
+ * Seeds the ChunkFunk fixture databases deterministically (PR-02).
  *
  * Idempotent: each fixture DB is dropped to a clean `public` schema and rebuilt.
  * The planted-problem counts are fixed by src/planted.ts and documented in
@@ -39,6 +39,7 @@ const DATABASES = {
   guiriLike: "fixture_guiri_like",
   structuredHealth: "fixture_structured_health",
   boundaryHealth: "fixture_boundary_health",
+  genericBody: "fixture_generic_body_chunks",
 } as const;
 
 function dbUrl(database: string): string {
@@ -578,6 +579,44 @@ async function seedBoundaryHealth(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Fixture J — generic body/properties/source_url pgvector layout. This mirrors
+// a common custom schema without adding a named recipe or new product behavior.
+// ---------------------------------------------------------------------------
+async function seedGenericBody(): Promise<void> {
+  await withClient(dbUrl(DATABASES.genericBody), async (client) => {
+    await resetSchema(client);
+    await client.query(`
+      create table knowledge_chunks (
+        chunk_id uuid primary key default gen_random_uuid(),
+        document_id uuid not null default gen_random_uuid(),
+        body text not null,
+        embedding vector(${DIMS.genericBody}),
+        properties jsonb,
+        source_url text,
+        updated_at timestamptz not null default now()
+      );
+    `);
+    const rng = mulberry32(0x424f4459);
+    await client.query("begin");
+    for (let i = 0; i < PLANTED.genericBody.healthy; i += 1) {
+      await client.query(
+        `insert into knowledge_chunks (body, embedding, properties, source_url, updated_at)
+         values ($1, $2, $3, $4, $5)`,
+        [
+          healthyChunk(1200 + i),
+          toVectorLiteral(unitVector(DIMS.genericBody, rng)),
+          JSON.stringify({ category: "support", language: "en" }),
+          sourceUrl(1200 + i),
+          new Date(Date.UTC(2026, 6, 8)).toISOString(),
+        ],
+      );
+    }
+    await client.query("commit");
+    await client.query("analyze");
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Self-check — fail loudly if the seeded corpus drifts from README's contract.
 // ---------------------------------------------------------------------------
 async function scalar(client: pg.Client, sql: string): Promise<number> {
@@ -794,6 +833,18 @@ async function verify(): Promise<void> {
       );
     }
   });
+
+  await withClient(dbUrl(DATABASES.genericBody), async (client) => {
+    const total = await scalar(client, "select count(*) from knowledge_chunks");
+    if (total !== PLANTED.genericBody.healthy) {
+      throw new Error(`generic-body total ${total} !== ${PLANTED.genericBody.healthy}`);
+    }
+    const missing = await scalar(
+      client,
+      "select count(*) from knowledge_chunks where body is null or embedding is null or properties is null or source_url is null",
+    );
+    if (missing !== 0) throw new Error("generic-body fixture must have complete healthy rows");
+  });
 }
 
 async function main(): Promise<void> {
@@ -807,6 +858,7 @@ async function main(): Promise<void> {
   await seedGuiriLike();
   await seedStructuredHealth();
   await seedBoundaryHealth();
+  await seedGenericBody();
   await verify();
   console.log(
     `Seeded fixtures:\n` +
@@ -828,7 +880,9 @@ async function main(): Promise<void> {
       `(${PLANTED.structuredHealth.tableLikeWithoutLocators} table-like without locators, ` +
       `${PLANTED.structuredHealth.missingTimestampRows} missing timestamps)\n` +
       `  ${DATABASES.boundaryHealth}: ${DERIVED.boundaryHealthTotal} chunks ` +
-      `(${PLANTED.boundaryHealth.midSentenceFragments} mid-sentence fragments)`,
+      `(${PLANTED.boundaryHealth.midSentenceFragments} mid-sentence fragments)\n` +
+      `  ${DATABASES.genericBody}: ${PLANTED.genericBody.healthy} chunks ` +
+      `(generic body/properties/source_url schema)`,
   );
 }
 

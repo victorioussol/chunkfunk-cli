@@ -37,6 +37,7 @@ Each fixture is its own database so introspection sees one RAG system per connec
 | `fixture_guiri_like` | `generic-single-table` (auto-ranked) | `document_chunks`, `embedding_cache`, `chunkfunk_chunks`, `sprigkeeper_chunks` | 1536 + 3072 | `created_at` |
 | `fixture_structured_health` | `generic-single-table` (auto) | `structured_documents` | 1536 | `created_at` |
 | `fixture_boundary_health` | `generic-single-table` (auto) | `boundary_documents` | 1536 | `created_at` |
+| `fixture_generic_body_chunks` | `generic-single-table` (auto) | `knowledge_chunks` | 768 | `updated_at` |
 
 ## Planted problems (exact counts)
 
@@ -128,6 +129,23 @@ Production-like prose fixture for chunk-boundary pain:
 
 The smoke test asserts that the report contains the boundary summary and does
 not leak the planted fragment text.
+
+### `fixture_generic_body_chunks` — custom pgvector body/properties schema (72 chunks)
+
+Healthy custom schema used to prove generic auto-detection without adding a
+named recipe:
+
+| Column | Purpose |
+|---|---|
+| `body` | chunk text |
+| `embedding` | pgvector embedding |
+| `properties` | JSON metadata |
+| `document_id` | stable document id |
+| `source_url` | source/citation locator |
+| `updated_at` | freshness timestamp |
+
+The expected auto-detected mapping is `public.knowledge_chunks` with `body` +
+`embedding`; the fixture contains only fake generated text and source URLs.
 
 ## Requirements
 

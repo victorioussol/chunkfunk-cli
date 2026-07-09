@@ -124,6 +124,22 @@ describe.skipIf(!BASE)("introspection vs fixtures", () => {
     expect(result.mapping.columns.updatedAt).toBe("created_at");
   });
 
+  it("auto-detects a custom body/properties/source_url pgvector schema", async () => {
+    const result = await introspectFixture("fixture_generic_body_chunks", {
+      yes: true,
+      prompts: throwingPrompts,
+    });
+    expect(result.recipeId).toBe("generic-single-table");
+    expect(result.mapping.table).toBe("public.knowledge_chunks");
+    expect(result.mapping.columns.content).toBe("body");
+    expect(result.mapping.columns.embedding).toBe("embedding");
+    expect(result.mapping.columns.metadata).toBe("properties");
+    expect(result.mapping.columns.documentId).toBe("document_id");
+    expect(result.mapping.columns.sourceUrl).toBe("source_url");
+    expect(result.mapping.columns.updatedAt).toBe("updated_at");
+    expect(result.embeddingDims).toBe(768);
+  });
+
   it("does not guess when a bespoke schema has ambiguous long text columns", async () => {
     await expect(
       introspectFixture("fixture_custom", {

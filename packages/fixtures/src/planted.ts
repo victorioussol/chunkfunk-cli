@@ -65,6 +65,10 @@ export const PLANTED = {
     midSentenceFragments: 24,
     proseRows: 16,
   },
+  /** Fixture J proves a common custom body/properties/source_url pgvector shape. */
+  genericBody: {
+    healthy: 72,
+  },
 } as const;
 
 export const DIMS = {
@@ -79,6 +83,7 @@ export const DIMS = {
   guiriLikeNext: 3072,
   structuredHealth: 1536,
   boundaryHealth: 1536,
+  genericBody: 768,
 } as const;
 
 /** Derived totals, exported for README cross-checking and the seed self-check. */
