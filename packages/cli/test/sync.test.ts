@@ -1,11 +1,14 @@
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { reportV1Schema, type ReportV1 } from "@chunkfunk/core";
 import { runLogin } from "../src/commands/login";
 import { runSync } from "../src/commands/sync";
 import { credentialsPath } from "../src/auth/credentials";
+
+const here = dirname(fileURLToPath(import.meta.url));
 
 function makeReport(): ReportV1 {
   return reportV1Schema.parse({
@@ -68,6 +71,12 @@ describe("CLI login/sync", () => {
     const raw = await readFile(credentialsPath(), "utf8");
     expect(JSON.parse(raw)).toEqual({ token: "cfunk_scan_test" });
     expect((await stat(credentialsPath())).mode & 0o777).toBe(0o600);
+  });
+
+  it("keeps cloud sync behind the explicit sync command", async () => {
+    const scanSource = await readFile(join(here, "..", "src", "commands", "scan.ts"), "utf8");
+
+    expect(scanSource).not.toMatch(/\b(syncReport|readCredentials)\b/);
   });
 
   it("sync posts a ReportV1 with bearer auth and validates the response", async () => {
