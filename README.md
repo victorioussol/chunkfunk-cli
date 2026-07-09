@@ -33,6 +33,7 @@ into manual debugging:
 - missing source/citation locators
 - table-like chunks without source/page/sheet/row traceability
 - missing or partial timestamps that make freshness and "latest data" hard to trust
+- rows marked deleted or archived that may still be retrievable
 - sparse or inconsistent metadata for filters
 - null, mixed-dimension, or poorly indexed pgvector embeddings
 - obvious risky strings such as accidentally indexed secrets

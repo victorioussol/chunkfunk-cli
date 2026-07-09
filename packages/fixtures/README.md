@@ -39,6 +39,7 @@ Each fixture is its own database so introspection sees one RAG system per connec
 | `fixture_boundary_health` | `generic-single-table` (auto) | `boundary_documents` | 1536 | `created_at` |
 | `fixture_generic_body_chunks` | `generic-single-table` (auto) | `knowledge_chunks` | 768 | `updated_at` |
 | `fixture_locator_coverage` | `generic-single-table` (auto) | `citation_documents` | 1536 | `updated_at` |
+| `fixture_retention_health` | `generic-single-table` (auto) | `retention_documents` | 1536 | `updated_at` |
 
 ## Planted problems (exact counts)
 
@@ -125,6 +126,13 @@ This fixture has a normal `source_url` column and should auto-map cleanly, but
 35 rows leave that column empty. It proves ChunkFunk checks actual source/citation
 coverage, not just whether a locator column exists. Reports must show counts and
 percentages only, never the source URL values.
+
+### `fixture_retention_health` — soft-deleted chunks still present (64 chunks)
+
+This fixture has otherwise healthy chunks with complete metadata and source URLs,
+but 12 rows have `deleted_at` set and 4 rows have `archived = true`. It proves
+ChunkFunk can warn about retrievable rows that appear deleted or archived without
+printing ids, document text, source URLs, or metadata values.
 
 ### `fixture_boundary_health` — mechanically split chunks (40 chunks)
 

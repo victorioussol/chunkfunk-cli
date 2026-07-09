@@ -384,6 +384,22 @@ if (!fixtureBaseUrl) {
     assert(report.health.subscores.coverage === 30, `expected coverage 30, got ${report.health.subscores.coverage}`);
   });
 
+  await step("flags soft-deleted chunks that may still be retrievable", async () => {
+    const dir = join(tempRoot, "retention-health");
+    await mkdir(dir, { recursive: true });
+    const env = cleanEnv({ DATABASE_URL: databaseUrl("fixture_retention_health") });
+    const result = await run(chunkfunkBin, ["scan", "--json", "--yes"], { cwd: dir, env });
+    assert(result.code === 0, result.stderr || result.stdout);
+    assert(!result.stdout.includes("docs.example.com"), "report must not print source URL values");
+    const report = parseJson(result.stdout, "retention-health scan");
+    assert(report.totals.chunks === 64, `expected 64 chunks, got ${report.totals.chunks}`);
+    assert(report.stack.mapping.table === "public.retention_documents", "expected retention_documents mapping");
+    assert(
+      report.findings.some((finding) => finding.title === "Rows marked deleted or archived are still in the mapped chunk table"),
+      "expected soft-deleted chunk retention finding",
+    );
+  });
+
   await step("reports an empty ingested table clearly", async () => {
     const dir = join(tempRoot, "empty-documents");
     await mkdir(dir, { recursive: true });

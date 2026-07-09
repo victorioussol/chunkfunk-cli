@@ -32,7 +32,7 @@ The full loop covers:
 - `--show-telemetry` payload inspection
 - LangChain PGVector, LlamaIndex PGVector, Supabase docs-tutorial, Guiri-like
   multi-table, metadata-health, empty-ingestion, structured-data, boundary-health,
-  generic body/properties, and sparse source-locator fixtures
+  generic body/properties, sparse source-locator, and retention-health fixtures
 
 ## Testing a dev database
 

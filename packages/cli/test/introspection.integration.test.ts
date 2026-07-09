@@ -140,6 +140,20 @@ describe.skipIf(!BASE)("introspection vs fixtures", () => {
     expect(result.embeddingDims).toBe(768);
   });
 
+  it("auto-detects retention-health fixture as a generic pgvector table", async () => {
+    const result = await introspectFixture("fixture_retention_health", {
+      yes: true,
+      prompts: throwingPrompts,
+    });
+    expect(result.recipeId).toBe("generic-single-table");
+    expect(result.mapping.table).toBe("public.retention_documents");
+    expect(result.mapping.columns.content).toBe("content");
+    expect(result.mapping.columns.embedding).toBe("embedding");
+    expect(result.mapping.columns.metadata).toBe("metadata");
+    expect(result.mapping.columns.sourceUrl).toBe("source_url");
+    expect(result.mapping.columns.updatedAt).toBe("updated_at");
+  });
+
   it("does not guess when a bespoke schema has ambiguous long text columns", async () => {
     await expect(
       introspectFixture("fixture_custom", {
@@ -204,6 +218,30 @@ describe.skipIf(!BASE)("introspection vs fixtures", () => {
       const signals = await reader.inspectArchitecture();
       expect(signals.some((signal) => signal.title.includes("no approximate vector index"))).toBe(false);
       expect(signals.some((signal) => signal.title === "Vector index exists on a different embedding column")).toBe(false);
+    } finally {
+      await reader.close();
+    }
+  });
+
+  it("reports rows marked deleted or archived from catalog-only reads", async () => {
+    const reader = new UserDbReader(dbUrl("fixture_retention_health"));
+    try {
+      const { mapping } = await introspect(reader, { yes: true, prompts: throwingPrompts });
+      reader.setMapping(mapping);
+      const signals = await reader.inspectArchitecture();
+      const retention = signals.find(
+        (signal) => signal.title === "Rows marked deleted or archived are still in the mapped chunk table",
+      );
+      expect(retention?.severity).toBe("warning");
+      expect(retention?.affectedCount).toBe(16);
+      expect(retention?.evidence).toMatchObject({
+        table: "public.retention_documents",
+        markerColumns: ["archived", "deleted_at"],
+        markedRows: 16,
+        totalRows: 64,
+        markedPct: 25,
+      });
+      expect(JSON.stringify(retention)).not.toContain("docs.example.com");
     } finally {
       await reader.close();
     }
