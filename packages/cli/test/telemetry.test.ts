@@ -170,7 +170,6 @@ describe("CLI telemetry", () => {
         dir,
         prompts,
         readerFactory: () => new HealthyReader() as unknown as UserDbReader,
-        offerSync: false,
         telemetryPrompt,
         telemetryFetchFn: fetchFn,
         stdout: () => undefined,
@@ -199,7 +198,6 @@ describe("CLI telemetry", () => {
         telemetryPrompt: async () => {
           throw new Error("telemetry prompt should not run");
         },
-        offerSync: false,
         stdout: (text) => {
           stdout += text;
         },
