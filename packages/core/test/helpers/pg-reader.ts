@@ -19,6 +19,7 @@ export class PgReader implements DetectorReader {
   private readonly embeddingExpr: string;
   private readonly metadataExpr: string | null;
   private readonly updatedAtExpr: string | null;
+  private readonly sourceLocatorExprs: string[];
 
   constructor(
     private readonly client: pg.Client,
@@ -33,6 +34,8 @@ export class PgReader implements DetectorReader {
     this.embeddingExpr = embedding;
     this.metadataExpr = buildColumnExpr(mapping, "metadata");
     this.updatedAtExpr = buildColumnExpr(mapping, "updatedAt");
+    this.sourceLocatorExprs = [buildColumnExpr(mapping, "sourceUrl"), buildColumnExpr(mapping, "documentId")]
+      .filter((expr): expr is string => expr !== null);
   }
 
   private get table(): string {
@@ -55,12 +58,16 @@ export class PgReader implements DetectorReader {
     const limit = options?.maxChunks ? `limit ${Number(options.maxChunks)}` : "";
     const metadata = this.metadataExpr ? `${this.metadataExpr}` : "null";
     const updatedAt = this.updatedAtExpr ? `${this.updatedAtExpr}` : "null";
+    const sourceLocatorPresent = this.sourceLocatorExprs.length > 0
+      ? `(${this.sourceLocatorExprs.map((expr) => `nullif(btrim((${expr})::text), '') is not null`).join(" or ")})`
+      : "null";
     const sql = `
       select ctid::text as ref,
              ${this.contentExpr} as content,
              vector_dims(${this.embeddingExpr}) as dims,
              ${metadata} as metadata,
-             ${updatedAt} as updated_at
+             ${updatedAt} as updated_at,
+             ${sourceLocatorPresent} as source_locator_present
       from ${this.table}
       order by ctid
       ${limit}`;
@@ -78,6 +85,9 @@ export class PgReader implements DetectorReader {
         metadata: metadataValue,
         embeddingDims: row.dims === null ? null : Number(row.dims),
         updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
+        sourceLocatorPresent: row.source_locator_present === null
+          ? null
+          : Boolean(row.source_locator_present),
       };
     }
   }

@@ -209,3 +209,21 @@ sanitized input format such as:
 Until then, ChunkFunk should say what it can prove from the stored evidence
 layer: chunk shape, locator coverage, metadata/filter readiness, timestamps,
 duplicates, embeddings, index health, and inventory drift.
+
+## Follow-up Batch: Mapped Locator Coverage
+
+Evidence rows 3, 5, 7, 19, 41, 43, 46, 47, and 48 all point to the same
+operator need: when retrieval is wrong, the builder needs to trace the answer
+back to the retrieved source. ChunkFunk already warns when no source/citation
+locator is mapped, but production schemas can have a `source_url` or document-id
+column that is sparsely populated.
+
+Build the privacy-safe version:
+
+- Count whether each scanned row has a mapped source URL or document id.
+- Do not print source URLs, document ids, file names, metadata values, or row
+  content.
+- Warn when mapped locator coverage is low, because citations and bad-retrieval
+  debugging will be unreliable even though the schema appears ready.
+- Prove it with a fake Postgres fixture where the locator column exists but many
+  rows are null.

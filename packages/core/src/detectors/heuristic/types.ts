@@ -21,6 +21,8 @@ export interface ChunkRecord {
   embeddingDims: number | null;
   /** ISO timestamp of the mapped updatedAt column/path; null when unmapped. */
   updatedAt: string | null;
+  /** True when a mapped source URL or document id is present; null when unmapped. */
+  sourceLocatorPresent: boolean | null;
 }
 
 /** A nearest-neighbor pair produced server-side by pgvector (§5.2). */

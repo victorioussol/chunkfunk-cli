@@ -366,6 +366,24 @@ if (!fixtureBaseUrl) {
     assert(report.stack.mapping.columns.updatedAt === "updated_at", "expected updated_at timestamp column");
   });
 
+  await step("flags sparse mapped source locators without leaking URLs", async () => {
+    const dir = join(tempRoot, "locator-coverage");
+    await mkdir(dir, { recursive: true });
+    const env = cleanEnv({ DATABASE_URL: databaseUrl("fixture_locator_coverage") });
+    const result = await run(chunkfunkBin, ["scan", "--json", "--yes"], { cwd: dir, env });
+    assert(result.code === 0, result.stderr || result.stdout);
+    assert(!result.stdout.includes("docs.example.com"), "report must not print source URL values");
+    const report = parseJson(result.stdout, "locator-coverage scan");
+    assert(report.totals.chunks === 50, `expected 50 chunks, got ${report.totals.chunks}`);
+    assert(report.stack.mapping.table === "public.citation_documents", "expected citation_documents mapping");
+    assert(report.stack.mapping.columns.sourceUrl === "source_url", "expected source_url mapping");
+    assert(
+      report.findings.some((finding) => finding.title === "Source/citation locator is missing on many chunks"),
+      "expected mapped locator coverage finding",
+    );
+    assert(report.health.subscores.coverage === 30, `expected coverage 30, got ${report.health.subscores.coverage}`);
+  });
+
   await step("reports an empty ingested table clearly", async () => {
     const dir = join(tempRoot, "empty-documents");
     await mkdir(dir, { recursive: true });

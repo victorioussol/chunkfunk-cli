@@ -89,6 +89,19 @@ function valueType(value: JsonValue | undefined): string {
   return typeof value;
 }
 
+function hasLocatorValue(value: JsonValue | undefined): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return true;
+}
+
+function hasMetadataLocator(metadata: JsonValue | null, keys: Set<string>): boolean {
+  if (metadata === null || typeof metadata !== "object" || Array.isArray(metadata)) return false;
+  return Object.entries(metadata).some(([key, value]) => keys.has(key) && hasLocatorValue(value));
+}
+
 function signalToFinding(signal: ArchitectureSignal): FindingV1 {
   return {
     type: "architecture",
@@ -277,14 +290,15 @@ async function runCorpusArchitecture(ctx: DetectorContext): Promise<{
     if (chunk.length >= LARGE_CHUNK_CHARS) largeChunks += 1;
     const metadata = chunk.metadata;
     const keys = metadata ? Object.keys(metadata) : [];
-    const hasSourceLocator = hasMappedSourceLocator || keys.some((key) => SOURCE_LOCATOR_KEYS.has(key));
+    const hasMappedSourceLocatorValue = chunk.sourceLocatorPresent === true;
+    const hasSourceLocator = hasMappedSourceLocatorValue || hasMetadataLocator(metadata, SOURCE_LOCATOR_KEYS);
     if (hasSourceLocator) {
       sourceLocatorRows += 1;
     }
     if (looksTableLike(chunk.contentSample)) {
       tableLikeChunks += 1;
-      const hasStructuredLocator = hasMappedSourceLocator ||
-        keys.some((key) => STRUCTURED_LOCATOR_KEYS.has(key));
+      const hasStructuredLocator = hasMappedSourceLocatorValue ||
+        hasMetadataLocator(metadata, STRUCTURED_LOCATOR_KEYS);
       if (!hasStructuredLocator) tableLikeWithoutLocator += 1;
     }
     if (keys.length === 0) {
@@ -435,17 +449,18 @@ async function runCorpusArchitecture(ctx: DetectorContext): Promise<{
   }
 
   const sourceLocatorPct = (sourceLocatorRows / scanned) * 100;
-  if (!hasMappedSourceLocator && sourceLocatorPct < 80) {
+  if (sourceLocatorPct < 80) {
     findings.push({
       type: "architecture",
       severity: sourceLocatorRows === 0 ? "warning" : "info",
       title: sourceLocatorRows === 0
         ? "No source or citation locator was found"
-        : "Source/citation metadata is missing on many chunks",
+        : "Source/citation locator is missing on many chunks",
       evidence: {
         scannedChunks: scanned,
         sourceLocatorRows,
         sourceLocatorPct: Number(sourceLocatorPct.toFixed(1)),
+        mappedSourceLocator: hasMappedSourceLocator,
         checkedMetadataKeys: [...SOURCE_LOCATOR_KEYS].sort(),
         sampled: Boolean(ctx.sampled),
       },

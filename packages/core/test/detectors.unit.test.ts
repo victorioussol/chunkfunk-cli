@@ -355,6 +355,35 @@ describe("architecture", () => {
     expect(JSON.stringify(result.findings)).not.toContain("team-a");
   });
 
+  it("flags sparse mapped source locator columns by coverage, not just schema presence", async () => {
+    const chunks: MockChunk[] = [];
+    for (let i = 0; i < 8; i += 1) {
+      chunks.push({ ref: `missing-${i}`, content: LONG, sourceLocatorPresent: false });
+    }
+    for (let i = 0; i < 2; i += 1) {
+      chunks.push({ ref: `present-${i}`, content: LONG, sourceLocatorPresent: true });
+    }
+
+    const result = await runArchitecture(
+      ctx(chunks, {
+        mapping: mapping({ metadata: null, sourceUrl: "source_url" }),
+      }),
+    );
+
+    const citation = result.findings.find(
+      (f) => f.title === "Source/citation locator is missing on many chunks",
+    );
+    expect(citation?.severity).toBe("info");
+    expect(citation?.affectedCount).toBe(8);
+    expect(citation?.evidence).toMatchObject({
+      scannedChunks: 10,
+      sourceLocatorRows: 2,
+      sourceLocatorPct: 20,
+      mappedSourceLocator: true,
+    });
+    expect(result.coverageScore).toBe(20);
+  });
+
   it("flags table-like chunks without exposing row values", async () => {
     const table = [
       "| product_code | region | renewal_status |",
