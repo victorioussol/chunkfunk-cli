@@ -1,0 +1,26 @@
+name: Packaged smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  packaged-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run fixtures:up
+      - run: npm run fixtures:seed
+        env:
+          FIXTURES_PG_URL: postgresql://postgres:postgres@127.0.0.1:55432/postgres
+      - run: npm run test:smoke
+        env:
+          FIXTURES_PG_URL: postgresql://postgres:postgres@127.0.0.1:55432/postgres
+      - if: always()
+        run: npm run fixtures:down
