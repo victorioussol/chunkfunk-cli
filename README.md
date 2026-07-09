@@ -6,7 +6,11 @@ ChunkFunk is open source because RAG maintenance should be inspectable, practica
 
 ## 10-minute quickstart
 
+Create the [read-only role](#create-a-read-only-postgres-role) below first. Then set its connection string locally; never commit it or put it in `chunkfunk.yaml`.
+
 ```bash
+export DATABASE_URL='postgresql://chunkfunk_readonly:YOUR_PASSWORD@HOST:5432/DATABASE'
+
 npx chunkfunk init
 npx chunkfunk scan
 ```
@@ -14,12 +18,6 @@ npx chunkfunk scan
 `init` writes a local `chunkfunk.yaml` with the detected mapping. It stores the name of your connection-string environment variable, not the connection string itself.
 
 See a captured fixture run in [docs/terminal-transcript.md](docs/terminal-transcript.md).
-
-For a one-off run:
-
-```bash
-DATABASE_URL="postgresql://chunkfunk_readonly:password@host:5432/db" npx chunkfunk scan
-```
 
 ## What ChunkFunk looks for
 
