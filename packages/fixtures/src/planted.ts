@@ -69,6 +69,11 @@ export const PLANTED = {
   genericBody: {
     healthy: 72,
   },
+  /** Fixture K proves mapped source/citation locator columns can still be sparse. */
+  locatorCoverage: {
+    total: 50,
+    missingSourceUrlRows: 35,
+  },
 } as const;
 
 export const DIMS = {
@@ -84,6 +89,7 @@ export const DIMS = {
   structuredHealth: 1536,
   boundaryHealth: 1536,
   genericBody: 768,
+  locatorCoverage: 1536,
 } as const;
 
 /** Derived totals, exported for README cross-checking and the seed self-check. */

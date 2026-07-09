@@ -114,6 +114,19 @@ const MAPPINGS: Record<string, MappingV1> = {
       updatedAt: "created_at",
     },
   },
+  fixture_locator_coverage: {
+    version: 1,
+    dialect: "pgvector",
+    table: "public.citation_documents",
+    columns: {
+      content: "content",
+      embedding: "embedding",
+      metadata: "metadata",
+      documentId: null,
+      sourceUrl: "source_url",
+      updatedAt: "updated_at",
+    },
+  },
 };
 
 describe.skipIf(!BASE)("detectors vs fixtures", () => {
@@ -146,6 +159,7 @@ describe.skipIf(!BASE)("detectors vs fixtures", () => {
   let metadataHealth: Awaited<ReturnType<typeof runHeuristicDetectors>>;
   let emptyDocs: Awaited<ReturnType<typeof runHeuristicDetectors>>;
   let structuredHealth: Awaited<ReturnType<typeof runHeuristicDetectors>>;
+  let locatorCoverage: Awaited<ReturnType<typeof runHeuristicDetectors>>;
 
   beforeAll(async () => {
     langchain = (await run("fixture_langchain")).result;
@@ -155,6 +169,7 @@ describe.skipIf(!BASE)("detectors vs fixtures", () => {
     metadataHealth = (await run("fixture_metadata_health")).result;
     emptyDocs = (await run("fixture_empty_documents")).result;
     structuredHealth = (await run("fixture_structured_health")).result;
+    locatorCoverage = (await run("fixture_locator_coverage")).result;
   }, 120_000);
 
   afterAll(async () => {
@@ -290,6 +305,25 @@ describe.skipIf(!BASE)("detectors vs fixtures", () => {
       expect(finding?.affectedCount).toBe(20);
       expect(structuredHealth.stats.staleDocsPct).toBeCloseTo(41.666, 2);
       expect(structuredHealth.subscores.freshness).toBeLessThan(100);
+    });
+  });
+
+  describe("fixture_locator_coverage (mapped source locator coverage)", () => {
+    it("flags sparse mapped source URLs without exposing URL values", () => {
+      const finding = locatorCoverage.findings.find(
+        (f) => f.title === "Source/citation locator is missing on many chunks",
+      );
+      expect(finding?.severity).toBe("info");
+      expect(finding?.affectedCount).toBe(35);
+      expect(finding?.evidence).toMatchObject({
+        scannedChunks: 50,
+        sourceLocatorRows: 15,
+        sourceLocatorPct: 30,
+        mappedSourceLocator: true,
+      });
+      const serialized = JSON.stringify(finding);
+      expect(serialized).not.toContain("docs.example.com");
+      expect(locatorCoverage.subscores.coverage).toBe(30);
     });
   });
 });

@@ -45,6 +45,7 @@ class SyntheticReader implements DetectorReader {
         metadata: null,
         embeddingDims: 1536,
         updatedAt: null,
+        sourceLocatorPresent: null,
       };
     }
   }

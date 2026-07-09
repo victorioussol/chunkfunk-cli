@@ -13,6 +13,7 @@ export interface MockChunk {
   embedding?: number[] | null;
   metadata?: JsonObject | null;
   updatedAt?: string | null;
+  sourceLocatorPresent?: boolean | null;
 }
 
 function cosine(a: number[], b: number[]): number {
@@ -44,6 +45,7 @@ export class MockReader implements DetectorReader {
       metadata: chunk.metadata ?? null,
       embeddingDims: embedding === null ? null : embedding.length,
       updatedAt: chunk.updatedAt ?? null,
+      sourceLocatorPresent: chunk.sourceLocatorPresent ?? null,
     };
   }
 

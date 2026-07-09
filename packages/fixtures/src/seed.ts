@@ -40,6 +40,7 @@ const DATABASES = {
   structuredHealth: "fixture_structured_health",
   boundaryHealth: "fixture_boundary_health",
   genericBody: "fixture_generic_body_chunks",
+  locatorCoverage: "fixture_locator_coverage",
 } as const;
 
 function dbUrl(database: string): string {
@@ -617,6 +618,45 @@ async function seedGenericBody(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Fixture K — mapped locator coverage. The schema has a normal source_url
+// column, but many rows are blank/null, mirroring RAG systems that can retrieve
+// chunks but cannot cite or trace them reliably.
+// ---------------------------------------------------------------------------
+async function seedLocatorCoverage(): Promise<void> {
+  await withClient(dbUrl(DATABASES.locatorCoverage), async (client) => {
+    await resetSchema(client);
+    await client.query(`
+      create table citation_documents (
+        id uuid primary key default gen_random_uuid(),
+        content text not null,
+        embedding vector(${DIMS.locatorCoverage}),
+        metadata jsonb,
+        source_url text,
+        updated_at timestamptz not null default now()
+      );
+    `);
+    const rng = mulberry32(0x43495445);
+    await client.query("begin");
+    for (let i = 0; i < PLANTED.locatorCoverage.total; i += 1) {
+      const hasSourceUrl = i >= PLANTED.locatorCoverage.missingSourceUrlRows;
+      await client.query(
+        `insert into citation_documents (content, embedding, metadata, source_url, updated_at)
+         values ($1, $2, $3, $4, $5)`,
+        [
+          healthyChunk(1600 + i),
+          toVectorLiteral(unitVector(DIMS.locatorCoverage, rng)),
+          JSON.stringify({ topic: "citation-coverage" }),
+          hasSourceUrl ? sourceUrl(1600 + i) : null,
+          new Date(Date.UTC(2026, 6, 8)).toISOString(),
+        ],
+      );
+    }
+    await client.query("commit");
+    await client.query("analyze");
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Self-check — fail loudly if the seeded corpus drifts from README's contract.
 // ---------------------------------------------------------------------------
 async function scalar(client: pg.Client, sql: string): Promise<number> {
@@ -845,6 +885,23 @@ async function verify(): Promise<void> {
     );
     if (missing !== 0) throw new Error("generic-body fixture must have complete healthy rows");
   });
+
+  await withClient(dbUrl(DATABASES.locatorCoverage), async (client) => {
+    const total = await scalar(client, "select count(*) from citation_documents");
+    if (total !== PLANTED.locatorCoverage.total) {
+      throw new Error(`locator-coverage total ${total} !== ${PLANTED.locatorCoverage.total}`);
+    }
+    const missingSourceUrls = await scalar(
+      client,
+      "select count(*) from citation_documents where source_url is null or btrim(source_url) = ''",
+    );
+    if (missingSourceUrls !== PLANTED.locatorCoverage.missingSourceUrlRows) {
+      throw new Error(
+        `locator-coverage missing source_url rows ${missingSourceUrls} !== ` +
+          `${PLANTED.locatorCoverage.missingSourceUrlRows}`,
+      );
+    }
+  });
 }
 
 async function main(): Promise<void> {
@@ -859,6 +916,7 @@ async function main(): Promise<void> {
   await seedStructuredHealth();
   await seedBoundaryHealth();
   await seedGenericBody();
+  await seedLocatorCoverage();
   await verify();
   console.log(
     `Seeded fixtures:\n` +
@@ -882,7 +940,9 @@ async function main(): Promise<void> {
       `  ${DATABASES.boundaryHealth}: ${DERIVED.boundaryHealthTotal} chunks ` +
       `(${PLANTED.boundaryHealth.midSentenceFragments} mid-sentence fragments)\n` +
       `  ${DATABASES.genericBody}: ${PLANTED.genericBody.healthy} chunks ` +
-      `(generic body/properties/source_url schema)`,
+      `(generic body/properties/source_url schema)\n` +
+      `  ${DATABASES.locatorCoverage}: ${PLANTED.locatorCoverage.total} chunks ` +
+      `(${PLANTED.locatorCoverage.missingSourceUrlRows} missing mapped source URLs)`,
   );
 }
 

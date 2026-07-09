@@ -111,6 +111,7 @@ class HealthyReader {
       metadata: null,
       embeddingDims: 1536,
       updatedAt: null,
+      sourceLocatorPresent: null,
     };
   }
   async *probeNearestNeighbors(): AsyncIterable<NearNeighborPair> {}

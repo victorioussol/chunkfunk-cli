@@ -38,6 +38,7 @@ Each fixture is its own database so introspection sees one RAG system per connec
 | `fixture_structured_health` | `generic-single-table` (auto) | `structured_documents` | 1536 | `created_at` |
 | `fixture_boundary_health` | `generic-single-table` (auto) | `boundary_documents` | 1536 | `created_at` |
 | `fixture_generic_body_chunks` | `generic-single-table` (auto) | `knowledge_chunks` | 768 | `updated_at` |
+| `fixture_locator_coverage` | `generic-single-table` (auto) | `citation_documents` | 1536 | `updated_at` |
 
 ## Planted problems (exact counts)
 
@@ -117,6 +118,13 @@ Production-like structured-data fixture for PDF/CSV/spreadsheet RAG pain:
 
 The smoke test asserts that reports do not leak planted tenant values or table
 row values from this fixture.
+
+### `fixture_locator_coverage` — sparse mapped source locators (50 chunks)
+
+This fixture has a normal `source_url` column and should auto-map cleanly, but
+35 rows leave that column empty. It proves ChunkFunk checks actual source/citation
+coverage, not just whether a locator column exists. Reports must show counts and
+percentages only, never the source URL values.
 
 ### `fixture_boundary_health` — mechanically split chunks (40 chunks)
 

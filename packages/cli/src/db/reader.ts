@@ -345,6 +345,11 @@ export class UserDbReader implements DetectorReader {
     }
     const updatedAtExpr = this.mappedExpr("updatedAt") ?? "null";
     const metadataExpr = this.mappedExpr("metadata") ?? "null";
+    const locatorExprs = [this.mappedExpr("sourceUrl"), this.mappedExpr("documentId")]
+      .filter((expr): expr is string => expr !== null);
+    const sourceLocatorPresentExpr = locatorExprs.length > 0
+      ? `(${locatorExprs.map((expr) => `nullif(btrim((${expr})::text), '') is not null`).join(" or ")})`
+      : "null";
     const table = quoteIdent(mapping.table);
 
     const max = options?.maxChunks;
@@ -364,7 +369,8 @@ export class UserDbReader implements DetectorReader {
                         ${contentExpr} as content,
                         vector_dims(${embeddingExpr}) as dims,
                         ${updatedAtExpr} as updated_at,
-                        ${metadataExpr} as metadata
+                        ${metadataExpr} as metadata,
+                        ${sourceLocatorPresentExpr} as source_locator_present
                  from ${table}
                  ${ordering}
                  ${limitClause}`;
@@ -378,6 +384,7 @@ export class UserDbReader implements DetectorReader {
         dims: number | null;
         updated_at: Date | string | null;
         metadata: unknown;
+        source_locator_present: boolean | null;
       }>) {
         const content = row.content ?? "";
         const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
@@ -391,6 +398,9 @@ export class UserDbReader implements DetectorReader {
           metadata,
           embeddingDims: row.dims === null ? null : Number(row.dims),
           updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
+          sourceLocatorPresent: row.source_locator_present === null
+            ? null
+            : Boolean(row.source_locator_present),
         };
       }
     } finally {
