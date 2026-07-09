@@ -19,6 +19,20 @@ For a one-off run:
 DATABASE_URL="postgresql://chunkfunk_readonly:password@host:5432/db" npx chunkfunk scan
 ```
 
+## What ChunkFunk looks for
+
+The first scan focuses on database-level problems that usually send RAG builders
+into manual debugging:
+
+- empty or partially failed ingestion
+- duplicate, near-duplicate, thin, or oversized chunks
+- missing source/citation locators
+- table-like chunks without source/page/sheet/row traceability
+- missing or partial timestamps that make freshness and "latest data" hard to trust
+- sparse or inconsistent metadata for filters
+- null, mixed-dimension, or poorly indexed pgvector embeddings
+- obvious risky strings such as accidentally indexed secrets
+
 ## Create a read-only Postgres role
 
 Create a database role like this before connecting ChunkFunk. Replace `your_database`, `public`, and the password with your own values.

@@ -8,6 +8,8 @@ export interface FreshnessResult {
   staleDocsPct: number | null;
 }
 
+const MISSING_TIMESTAMP_WARNING_PCT = 20;
+
 /**
  * §5.5 — freshness needs a mapped `updatedAt` column AND/OR source snapshots.
  * When no timestamp is mapped, emit a single `architecture` finding with a
@@ -63,8 +65,12 @@ export async function runFreshness(ctx: DetectorContext): Promise<FreshnessResul
 
     let stale = 0;
     let measured = 0;
+    let missingTimestamps = 0;
     for await (const chunk of ctx.reader.streamChunks({ maxChunks: ctx.limits.maxChunks })) {
-      if (chunk.updatedAt === null) continue;
+      if (chunk.updatedAt === null) {
+        missingTimestamps += 1;
+        continue;
+      }
       measured += 1;
       const indexed = Date.parse(chunk.updatedAt);
       if (
@@ -75,7 +81,30 @@ export async function runFreshness(ctx: DetectorContext): Promise<FreshnessResul
         stale += 1;
       }
     }
-    staleDocsPct = measured > 0 ? (stale / measured) * 100 : 0;
+    const scanned = measured + missingTimestamps;
+    const missingTimestampPct = scanned > 0 ? (missingTimestamps / scanned) * 100 : 0;
+    if (scanned > 0 && missingTimestampPct >= MISSING_TIMESTAMP_WARNING_PCT) {
+      findings.push({
+        type: "architecture",
+        severity: "warning",
+        title: measured === 0
+          ? "Mapped timestamp column is empty"
+          : "Many chunks have no timestamp, so freshness is partial",
+        evidence: {
+          scannedChunks: scanned,
+          timestampedChunks: measured,
+          missingTimestampChunks: missingTimestamps,
+          missingTimestampPct: Number(missingTimestampPct.toFixed(1)),
+          sampled: Boolean(ctx.sampled),
+        },
+        suggestedRepair: {
+          kind: "backfill_timestamps",
+          description: "Backfill the mapped timestamp column so stale and latest-data retrieval problems can be measured reliably.",
+        },
+        affectedCount: missingTimestamps,
+      });
+    }
+    staleDocsPct = measured > 0 ? ((stale + missingTimestamps) / scanned) * 100 : null;
     if (stale > 0) {
       findings.push({
         type: "stale_document",
