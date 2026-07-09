@@ -98,6 +98,11 @@ export function tableLikeChunk(i: number): string {
   ].join("\n");
 }
 
+/** A long-enough chunk that looks like it was cut out of the middle of prose. */
+export function boundaryFragmentChunk(i: number): string {
+  return `and continues the handbook explanation from the previous paragraph with enough procedural detail for retrieval to rank it, but without the opening sentence or a clean ending marker ${i}`;
+}
+
 export function sourceUrl(i: number): string {
   return `https://docs.example.com/${TOPICS[i % TOPICS.length].replace(/ /g, "-")}/${i}`;
 }

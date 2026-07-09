@@ -27,6 +27,7 @@ into manual debugging:
 - empty or partially failed ingestion
 - indexed counts below an explicit inventory minimum you provide
 - duplicate, near-duplicate, thin, or oversized chunks
+- chunks that look mechanically cut mid-sentence
 - missing source/citation locators
 - table-like chunks without source/page/sheet/row traceability
 - missing or partial timestamps that make freshness and "latest data" hard to trust

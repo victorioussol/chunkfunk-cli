@@ -7,8 +7,10 @@ Direct Reddit access was blocked from this network, so Reddit discovery used the
 public PullPush archive and links back to the original Reddit threads. Public
 X/Twitter search was attempted through Jina Reader and Nitter-style mirrors, but
 anonymous access to `x.com` returned `403 AbuseAlleviationError` and Nitter
-search returned an empty page. A follow-up retry after PR #28 saw the same
-blocked/empty results. Do not treat X as researched in this pass.
+search returned an empty page. Follow-up retries after PR #28 and after the
+share-safe report batch saw the same blocked/empty results, including public
+searches for `site:x.com` RAG chunking, pgvector, citations, and retrieval
+debugging. Do not treat X as researched in this pass.
 
 ## Strong Evidence
 
@@ -128,3 +130,24 @@ Build only the safe copy/reporting version:
 - State in terminal/HTML output that reports hide chunk text, metadata values,
   source locators, and connection strings.
 - Keep JSON machine-readable, but do not use it as a path to leak document text.
+
+## Follow-up Batch: Boundary Damage And Triage Clarity
+
+Evidence rows 1, 2, 12, 20, 26, and 33 all point to the same operator behavior:
+when retrieval feels random, builders usually start changing chunking, overlap,
+metadata, or prompts manually. ChunkFunk cannot prove query-time relevance from
+a read-only database scan, but it can show two useful first-scan signals:
+
+- many rows look like mechanically cut sentence fragments, which makes retrieved
+  context harder to trust;
+- the `Fix first` list should surface distinct repair categories, not repeat the
+  same per-row problem several times.
+
+Build only the privacy-safe version:
+
+- Add a corpus-level summary when many chunks start and end like mid-sentence
+  fragments.
+- Keep individual chunk refs for debugging, but never print the fragment text.
+- Add a fixture with boundary-damaged chunks and packaged smoke coverage.
+- Group next actions by repair category/title so screenshots are easier to act
+  on and less noisy.

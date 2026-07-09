@@ -331,6 +331,26 @@ if (!fixtureBaseUrl) {
     assert(report.health.score < 100, "structured-health warnings should lower the headline health score");
   });
 
+  await step("summarizes boundary-damaged chunks without leaking text", async () => {
+    const dir = join(tempRoot, "boundary-health");
+    await mkdir(dir, { recursive: true });
+    const env = cleanEnv({ DATABASE_URL: databaseUrl("fixture_boundary_health") });
+    const result = await run(chunkfunkBin, ["scan", "--json", "--yes"], { cwd: dir, env });
+    assert(result.code === 0, result.stderr || result.stdout);
+    assert(!result.stdout.includes("handbook explanation"), "report must not print boundary-fragment text");
+    const report = parseJson(result.stdout, "boundary-health scan");
+    assert(report.totals.chunks === 40, `expected 40 chunks, got ${report.totals.chunks}`);
+    assert(report.stack.mapping.table === "public.boundary_documents", "expected boundary_documents mapping");
+    assert(
+      report.findings.some((finding) => finding.title === "Many chunks look mechanically split mid-sentence"),
+      "expected mid-sentence boundary summary",
+    );
+    assert(
+      report.nextActions.some((action) => action.title === "Many chunks look mechanically split mid-sentence"),
+      "expected boundary issue in fix-first actions",
+    );
+  });
+
   await step("reports an empty ingested table clearly", async () => {
     const dir = join(tempRoot, "empty-documents");
     await mkdir(dir, { recursive: true });

@@ -17,6 +17,14 @@ const SEVERITY_RANK: Record<FindingSeverity, number> = {
   info: 2,
 };
 
+function nextActionKey(finding: FindingV1): string {
+  if (finding.suggestedRepair?.kind) return finding.suggestedRepair.kind;
+  if (finding.type === "exact_duplicate" || finding.type === "near_duplicate") {
+    return finding.type;
+  }
+  return `${finding.type}:${finding.title}`;
+}
+
 export interface BuildReportInput {
   mapping: MappingV1;
   stackMeta: StackMeta;
@@ -30,14 +38,38 @@ export interface BuildReportInput {
 
 /** Top-5 findings by severity → ranked next actions referencing finding indices. */
 function buildNextActions(findings: FindingV1[]): ReportV1["nextActions"] {
-  return findings
-    .map((finding, index) => ({ finding, index }))
-    .sort((a, b) => SEVERITY_RANK[a.finding.severity] - SEVERITY_RANK[b.finding.severity])
+  const grouped = new Map<string, { finding: FindingV1; refs: number[]; affectedCount: number }>();
+
+  findings.forEach((finding, index) => {
+    const key = nextActionKey(finding);
+    const existing = grouped.get(key);
+    if (!existing) {
+      grouped.set(key, {
+        finding,
+        refs: [index],
+        affectedCount: finding.affectedCount,
+      });
+      return;
+    }
+
+    existing.refs.push(index);
+    existing.affectedCount += finding.affectedCount;
+    if (SEVERITY_RANK[finding.severity] < SEVERITY_RANK[existing.finding.severity]) {
+      existing.finding = finding;
+    }
+  });
+
+  return [...grouped.values()]
+    .sort((a, b) => {
+      const severity = SEVERITY_RANK[a.finding.severity] - SEVERITY_RANK[b.finding.severity];
+      if (severity !== 0) return severity;
+      return b.affectedCount - a.affectedCount;
+    })
     .slice(0, 5)
     .map((entry, rank) => ({
       rank: rank + 1,
       title: entry.finding.title,
-      findingRefs: [entry.index],
+      findingRefs: entry.refs,
     }));
 }
 

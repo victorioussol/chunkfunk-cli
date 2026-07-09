@@ -36,6 +36,7 @@ Each fixture is its own database so introspection sees one RAG system per connec
 | `fixture_empty_documents` | `supabase-docs-tutorial` (auto) | `documents` | 1536 | none |
 | `fixture_guiri_like` | `generic-single-table` (auto-ranked) | `document_chunks`, `embedding_cache`, `chunkfunk_chunks`, `sprigkeeper_chunks` | 1536 + 3072 | `created_at` |
 | `fixture_structured_health` | `generic-single-table` (auto) | `structured_documents` | 1536 | `created_at` |
+| `fixture_boundary_health` | `generic-single-table` (auto) | `boundary_documents` | 1536 | `created_at` |
 
 ## Planted problems (exact counts)
 
@@ -115,6 +116,18 @@ Production-like structured-data fixture for PDF/CSV/spreadsheet RAG pain:
 
 The smoke test asserts that reports do not leak planted tenant values or table
 row values from this fixture.
+
+### `fixture_boundary_health` — mechanically split chunks (40 chunks)
+
+Production-like prose fixture for chunk-boundary pain:
+
+| Problem | Count | Purpose |
+|---|---:|---|
+| Mid-sentence fragment chunks | **24** | Proves ChunkFunk can summarize mechanically cut chunks without printing their text |
+| Healthy prose rows | **16** | Keeps the detector from treating every normal row as a boundary problem |
+
+The smoke test asserts that the report contains the boundary summary and does
+not leak the planted fragment text.
 
 ## Requirements
 
