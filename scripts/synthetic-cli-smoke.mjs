@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { createServer } from "node:http";
 import { mkdtemp, mkdir, readFile, rm, statfs, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -29,6 +30,27 @@ function databaseUrl(database) {
   const url = new URL(fixtureBaseUrl);
   url.pathname = `/${database}`;
   return url.toString();
+}
+
+function listen(server) {
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", reject);
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        reject(new Error("Could not determine local test server port"));
+        return;
+      }
+      resolve(address.port);
+    });
+  });
+}
+
+function close(server) {
+  return new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
 }
 
 function cleanEnv(overrides = {}) {
@@ -216,6 +238,54 @@ if (!fixtureBaseUrl) {
     assert(report.totals.chunks === 298, `expected 298 chunks, got ${report.totals.chunks}`);
     assert(report.stack.mapping.table === "public.langchain_pg_embedding", "expected LangChain mapping");
     assert(report.health.score >= 0 && report.health.score <= 100, "score should be 0-100");
+  });
+
+  await step("keeps a normal installed scan local after login", async () => {
+    const dir = join(tempRoot, "local-after-login");
+    const configDir = join(tempRoot, "local-after-login-config");
+    await mkdir(dir, { recursive: true });
+    await mkdir(configDir, { recursive: true });
+
+    let requestCount = 0;
+    const server = createServer((_request, response) => {
+      requestCount += 1;
+      response.writeHead(500);
+      response.end();
+    });
+    const port = await listen(server);
+    const env = cleanEnv({
+      DATABASE_URL: databaseUrl("fixture_langchain"),
+      CHUNKFUNK_CONFIG_DIR: configDir,
+    });
+
+    try {
+      const initialScan = await run(chunkfunkBin, ["scan", "--json", "--yes"], { cwd: dir, env });
+      assert(initialScan.code === 0, initialScan.stderr || initialScan.stdout);
+
+      const configPath = join(dir, "chunkfunk.yaml");
+      const config = await readFile(configPath, "utf8");
+      await writeFile(
+        configPath,
+        `${config.trimEnd()}
+sync:
+  enabled: true
+  apiUrl: http://127.0.0.1:${port}
+telemetry: false
+`,
+        "utf8",
+      );
+
+      const login = await run(chunkfunkBin, ["login", "--token", "cfunk_smoke_sync"], { cwd: dir, env });
+      assert(login.code === 0, login.stderr || login.stdout);
+
+      const scan = await run(chunkfunkBin, ["scan", "--yes"], { cwd: dir, env });
+      assert(scan.code === 0, scan.stderr || scan.stdout);
+      assert(!scan.stderr.includes("Sync this scan"), "normal scan must not offer cloud sync");
+      assert(requestCount === 0, `normal scan made ${requestCount} unexpected network requests`);
+    } finally {
+      await close(server);
+      await rm(configDir, { recursive: true, force: true });
+    }
   });
 
   await step("checks CI exit codes on rotten LangChain fixture", async () => {
