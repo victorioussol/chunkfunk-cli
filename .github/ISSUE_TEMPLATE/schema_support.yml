@@ -7,6 +7,7 @@ body:
     attributes:
       value: |
         Schema reports are one of the best ways to improve ChunkFunk. Please share structure, not private data.
+        Before posting, read the [safe schema sharing guide](https://github.com/victorioussol/chunkfunk-cli/blob/main/docs/sanitized-schema-sharing.md).
   - type: input
     id: framework
     attributes:

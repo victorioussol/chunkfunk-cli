@@ -13,6 +13,8 @@ npx chunkfunk scan
 
 `init` writes a local `chunkfunk.yaml` with the detected mapping. It stores the name of your connection-string environment variable, not the connection string itself.
 
+See a captured fixture run in [docs/terminal-transcript.md](docs/terminal-transcript.md).
+
 For a one-off run:
 
 ```bash
@@ -104,7 +106,7 @@ The full published payload contract is in [TELEMETRY.md](TELEMETRY.md).
 
 ## Example report
 
-See a committed sample report from the deliberately rotten LangChain fixture: [docs/sample-rotten-langchain-report.html](docs/sample-rotten-langchain-report.html).
+See a committed sample report from the deliberately rotten LangChain fixture: [docs/sample-rotten-langchain-report.html](docs/sample-rotten-langchain-report.html). The walkthrough in [docs/sample-report-guide.md](docs/sample-report-guide.md) explains what to inspect first.
 
 Human-readable reports include a simple `RAG rot` label so the result is easy to
 scan and share. Reports hide chunk text, metadata values, source locators, and
@@ -139,6 +141,7 @@ New contributors are welcome. Good first contributions include schema reports, f
 Start here:
 
 - [docs/first-contribution.md](docs/first-contribution.md) gives new contributors a small first path.
+- [docs/sanitized-schema-sharing.md](docs/sanitized-schema-sharing.md) explains how to share schema details safely.
 - [CONTRIBUTING.md](CONTRIBUTING.md) explains how to make a useful pull request.
 - [SUPPORT.md](SUPPORT.md) explains where to ask questions or report problems.
 - [SECURITY.md](SECURITY.md) explains how to report sensitive issues safely.
