@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { buildColumnExpr } from "../../sql/build-column-expr";
 import type { FindingV1 } from "../../schemas/report";
 import type { DetectorContext } from "./types";
@@ -9,6 +10,10 @@ export interface FreshnessResult {
 }
 
 const MISSING_TIMESTAMP_WARNING_PCT = 20;
+
+function hashLocator(locator: string): string {
+  return `sha256:${createHash("sha256").update(locator).digest("hex").slice(0, 16)}`;
+}
 
 /**
  * §5.5 — freshness needs a mapped `updatedAt` column AND/OR source snapshots.
@@ -46,9 +51,9 @@ export async function runFreshness(ctx: DetectorContext): Promise<FreshnessResul
     findings.push({
       type: "stale_source",
       severity: "warning",
-      title: `Source changed since last scan: ${snapshot.locator}`,
+      title: "Source changed since last scan",
       evidence: {
-        locator: snapshot.locator,
+        locatorHash: hashLocator(snapshot.locator),
         signalKind: snapshot.signalKind,
         observedAt: snapshot.observedAt,
       },

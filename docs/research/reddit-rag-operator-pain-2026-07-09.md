@@ -7,7 +7,8 @@ Direct Reddit access was blocked from this network, so Reddit discovery used the
 public PullPush archive and links back to the original Reddit threads. Public
 X/Twitter search was attempted through Jina Reader and Nitter-style mirrors, but
 anonymous access to `x.com` returned `403 AbuseAlleviationError` and Nitter
-search returned an empty page. Do not treat X as researched in this pass.
+search returned an empty page. A follow-up retry after PR #28 saw the same
+blocked/empty results. Do not treat X as researched in this pass.
 
 ## Strong Evidence
 
@@ -112,3 +113,18 @@ Build only the opt-in version:
 - If document ids are not mapped, report that document inventory cannot be
   verified instead of guessing.
 - Do not print source names, document names, row values, or connection strings.
+
+## Follow-up Batch: Share-Safe Report Copy
+
+The same evidence base repeatedly points to trust, citations, and debugging
+confidence. The first scan should therefore be useful in a terminal screenshot
+without exposing private data.
+
+Build only the safe copy/reporting version:
+
+- Add a compact `RAG rot` label derived from the existing health score.
+- Remove chunk excerpts from finding evidence entirely.
+- Replace source locators in reports with stable hash labels.
+- State in terminal/HTML output that reports hide chunk text, metadata values,
+  source locators, and connection strings.
+- Keep JSON machine-readable, but do not use it as a path to leak document text.

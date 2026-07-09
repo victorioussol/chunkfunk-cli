@@ -72,6 +72,7 @@ describe("exact-duplicate", () => {
     const result = await runExactDuplicate(ctx(chunks));
     expect(result.groups).toBe(2);
     expect(result.memberRows).toBe(6);
+    expect(JSON.stringify(result.findings)).not.toContain("Duplicate body");
     const warnings = result.findings.filter((f) => f.severity === "warning");
     const criticals = result.findings.filter((f) => f.severity === "critical");
     expect(warnings).toHaveLength(2);
@@ -123,6 +124,8 @@ describe("thin-chunk", () => {
     expect(result.thinCount).toBe(3);
     expect(refs).toEqual(expect.arrayContaining(["short", "links", "mid"]));
     expect(refs).not.toContain("ok");
+    expect(JSON.stringify(result.findings)).not.toContain("Too short");
+    expect(JSON.stringify(result.findings)).not.toContain("https://a.com");
   });
 });
 

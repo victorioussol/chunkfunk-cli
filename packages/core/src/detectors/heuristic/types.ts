@@ -4,14 +4,15 @@ import type { FindingSeverity, FindingV1, SuggestedRepair } from "../../schemas/
 
 /**
  * One chunk as seen by detectors. The reader NEVER exposes full document text —
- * only a 500-char sample, plus a hash and length computed from the normalized
- * content (§5). This keeps detectors memory-safe and evidence excerpts bounded.
+ * only an in-process 500-char sample for private heuristics, plus a hash and
+ * length computed from the normalized content (§5). Detectors must not place
+ * the sample in report evidence.
  */
 export interface ChunkRecord {
   ref: string;
   /** sha256 of normalized content (see normalize.ts). */
   contentHash: string;
-  /** First 500 chars of the RAW content, for evidence + text heuristics. */
+  /** First 500 chars of the RAW content, for private text heuristics only. */
   contentSample: string;
   /** Normalized content length. */
   length: number;

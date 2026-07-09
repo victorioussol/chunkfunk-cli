@@ -60,7 +60,7 @@ function makeReport(overrides: Partial<ReportV1> = {}): ReportV1 {
         type: "risky_chunk",
         severity: "critical",
         title: "Chunk contains customer-only launch notes",
-        evidence: { excerpt: "SECRET_CUSTOMER_DOC_CONTENT sk-private-value" },
+        evidence: { detail: "SECRET_CUSTOMER_DOC_CONTENT sk-private-value" },
         affectedCount: 1,
       },
     ],

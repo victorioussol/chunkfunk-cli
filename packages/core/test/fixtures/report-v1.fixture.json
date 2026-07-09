@@ -60,8 +60,7 @@
         "groups": 12,
         "duplicateChunks": 38,
         "corpusPct": 0.31,
-        "sampleRefs": ["chunk:1042", "chunk:2210"],
-        "excerpt": "Pricing starts at $29/month for the solo plan…"
+        "sampleRefs": ["chunk:1042", "chunk:2210"]
       },
       "suggestedRepair": {
         "kind": "dedupe",
@@ -76,7 +75,6 @@
       "title": "1 chunk contains what looks like an API secret",
       "evidence": {
         "pattern": "sk-*",
-        "excerpt": "…set your key: sk-a…(redacted)",
         "refs": ["chunk:9911"]
       },
       "suggestedRepair": null,
@@ -99,14 +97,14 @@
   ],
   "sources": [
     {
-      "locator": "https://docs.example.com/sitemap.xml",
+      "locator": "https source sha256:f7ae380f3a8d9076",
       "kind": "sitemap",
       "lastIndexedAt": "2026-06-20T08:00:00.000Z",
       "lastChangedAt": "2026-07-01T16:20:00.000Z",
       "status": "stale"
     },
     {
-      "locator": "example/docs-repo",
+      "locator": "source sha256:aeb64f7c5d08c855",
       "kind": "github_repo",
       "lastIndexedAt": null,
       "lastChangedAt": null,

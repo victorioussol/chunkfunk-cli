@@ -9,6 +9,7 @@ import {
 } from "@chunkfunk/core";
 import type { StackMeta } from "../introspect/introspect";
 import { capFindingEvidence } from "./evidence";
+import { safeLocatorLabel } from "../privacy/safe-label";
 
 const SEVERITY_RANK: Record<FindingSeverity, number> = {
   critical: 0,
@@ -41,7 +42,7 @@ function buildNextActions(findings: FindingV1[]): ReportV1["nextActions"] {
 }
 
 /**
- * Assembles a validated ReportV1 (§3.1) from the detector run. Evidence excerpts
+ * Assembles a validated ReportV1 (§3.1) from the detector run. Evidence strings
  * are capped to 500 chars here, at emit time, and the whole report is parsed
  * through the zod schema before it can leave the process (defense in depth).
  */
@@ -72,7 +73,7 @@ export function buildReport(input: BuildReportInput): ReportV1 {
     },
     findings,
     sources: input.sources.map((s) => ({
-      locator: s.locator,
+      locator: safeLocatorLabel(s.locator),
       kind: s.kind,
       lastIndexedAt: null,
       lastChangedAt: null,

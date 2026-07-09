@@ -1,6 +1,7 @@
 import pc from "picocolors";
 import type { FindingSeverity, ReportV1 } from "@chunkfunk/core";
 import { SEVERITY_ORDER, groupFindings, severityCount } from "./group";
+import { safeLocatorLabel } from "../privacy/safe-label";
 
 function scoreColor(score: number): (s: string) => string {
   if (score >= 80) return pc.green;
@@ -10,6 +11,17 @@ function scoreColor(score: number): (s: string) => string {
 
 function fmtSub(value: number | null): string {
   return value === null ? " --" : String(Math.round(value)).padStart(3);
+}
+
+function rotLabel(score: number): string {
+  if (score >= 90) return "none";
+  if (score >= 80) return "light";
+  if (score >= 60) return "noticeable";
+  return "severe";
+}
+
+function renderLocator(locator: string): string {
+  return locator.includes(" sha256:") ? locator : safeLocatorLabel(locator);
 }
 
 const SEVERITY_LABEL: Record<FindingSeverity, (s: string) => string> = {
@@ -30,7 +42,7 @@ export function renderTerminal(report: ReportV1): string {
   lines.push("");
   lines.push(
     `  ${pc.bold("ChunkFunk")}   ${color(pc.bold(`${report.health.score}/100`))}  ` +
-      pc.dim(`health · ${report.totals.chunks} chunks · ${report.totals.sources} sources`),
+      pc.dim(`health · RAG rot: ${rotLabel(report.health.score)} · ${report.totals.chunks} chunks · ${report.totals.sources} sources`),
   );
 
   const s = report.health.subscores;
@@ -63,7 +75,7 @@ export function renderTerminal(report: ReportV1): string {
     lines.push("");
     lines.push(pc.bold("Sources"));
     for (const source of report.sources) {
-      lines.push(`  ${source.locator}  ${pc.dim(`[${source.status}]`)}`);
+      lines.push(`  ${renderLocator(source.locator)}  ${pc.dim(`[${source.status}]`)}`);
     }
   }
 
@@ -76,6 +88,7 @@ export function renderTerminal(report: ReportV1): string {
   }
 
   lines.push("");
+  lines.push(pc.dim("  Share-safe: no chunk text, metadata values, source locators, or connection strings are printed."));
   lines.push(pc.dim("  Run `chunkfunk sync` to track your health score over time."));
   lines.push("");
   return lines.join("\n");
