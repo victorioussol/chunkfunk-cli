@@ -48,6 +48,7 @@ export async function writeConfig(
     connection: validated.connection,
     ...(validated.mapping ? { mapping: validated.mapping } : {}),
     ...(validated.sources ? { sources: validated.sources } : {}),
+    ...(validated.inventory ? { inventory: validated.inventory } : {}),
     ...(validated.sync ? { sync: validated.sync } : {}),
     ...(Object.prototype.hasOwnProperty.call(config, "telemetry") ? { telemetry: validated.telemetry } : {}),
     ...(validated.thresholds ? { thresholds: validated.thresholds } : {}),

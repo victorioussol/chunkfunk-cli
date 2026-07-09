@@ -359,6 +359,60 @@ describe("architecture", () => {
     expect(serialized).not.toContain("team-a");
   });
 
+  it("flags indexed chunk counts below an explicit inventory minimum", async () => {
+    const chunks: MockChunk[] = [
+      { ref: "a", content: LONG, metadata: { source: "docs" } },
+      { ref: "b", content: LONG, metadata: { source: "docs" } },
+    ];
+    const result = await runArchitecture(
+      ctx(chunks, {
+        totalChunks: 2,
+        inventory: { minChunks: 5 },
+      }),
+    );
+
+    const finding = result.findings.find(
+      (f) => f.title === "Indexed chunk count is below the configured inventory minimum",
+    );
+    expect(finding?.severity).toBe("critical");
+    expect(finding?.evidence).toMatchObject({
+      expectedMinChunks: 5,
+      observedChunks: 2,
+      missingChunks: 3,
+      observedPct: 40,
+    });
+    expect(result.coverageScore).toBe(40);
+  });
+
+  it("flags indexed document counts below an explicit inventory minimum", async () => {
+    const result = await runArchitecture(
+      ctx([{ ref: "a", content: LONG, metadata: { source: "docs" } }], {
+        inventory: { minDocuments: 10, observedDocuments: 8 },
+      }),
+    );
+
+    const finding = result.findings.find(
+      (f) => f.title === "Indexed document count is below the configured inventory minimum",
+    );
+    expect(finding?.severity).toBe("warning");
+    expect(finding?.affectedCount).toBe(2);
+    expect(result.coverageScore).toBe(80);
+  });
+
+  it("does not guess document inventory when no document id count is available", async () => {
+    const result = await runArchitecture(
+      ctx([{ ref: "a", content: LONG, metadata: { source: "docs" } }], {
+        inventory: { minDocuments: 10, observedDocuments: null },
+      }),
+    );
+
+    const finding = result.findings.find(
+      (f) => f.title === "Document inventory cannot be verified without a mapped document id",
+    );
+    expect(finding?.severity).toBe("info");
+    expect(result.coverageScore).toBe(100);
+  });
+
   it("hashes uncommon metadata keys before they can leave the process", async () => {
     const chunks: MockChunk[] = [];
     for (let i = 0; i < 24; i += 1) {

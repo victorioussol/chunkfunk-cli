@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, statfs } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, statfs, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -224,6 +224,29 @@ if (!fixtureBaseUrl) {
     assert(fail.code === 1, `expected failing CI exit 1, got ${fail.code}`);
     const pass = await run(chunkfunkBin, ["scan", "--ci", "--min-score", "1", "--yes"], { cwd: dir, env });
     assert(pass.code === 0, `expected passing CI exit 0, got ${pass.code}`);
+  });
+
+  await step("flags explicit inventory drift without guessing", async () => {
+    const dir = join(tempRoot, "inventory-drift");
+    await mkdir(dir, { recursive: true });
+    const env = cleanEnv({ DATABASE_URL: databaseUrl("fixture_langchain") });
+
+    const init = await run(chunkfunkBin, ["init", "--yes", "--name", "inventory-drift"], { cwd: dir, env });
+    assert(init.code === 0, init.stderr || init.stdout);
+
+    const configPath = join(dir, "chunkfunk.yaml");
+    const config = await readFile(configPath, "utf8");
+    await writeFile(configPath, `${config}\ninventory:\n  minChunks: 400\n`, "utf8");
+
+    const scan = await run(chunkfunkBin, ["scan", "--json", "--yes"], { cwd: dir, env });
+    assert(scan.code === 0, scan.stderr || scan.stdout);
+    const report = parseJson(scan.stdout, "inventory drift scan");
+    assert(report.totals.chunks === 298, `expected 298 chunks, got ${report.totals.chunks}`);
+    assert(
+      report.findings.some((finding) => finding.title === "Indexed chunk count is below the configured inventory minimum"),
+      "expected explicit inventory drift finding",
+    );
+    assert(!scan.stdout.includes("postgresql://"), "inventory report must not include connection strings");
   });
 
   await step("prints telemetry bytes without obvious secrets", async () => {

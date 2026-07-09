@@ -152,7 +152,8 @@ export async function runScan(options: ScanOptions = {}): Promise<ScanResult> {
     reader.setMapping(mapping);
     const { thresholds, limits } = resolveThresholds(config);
     const totalChunks = await reader.countChunks();
-    const documents = (await reader.countDistinctDocuments()) ?? totalChunks;
+    const distinctDocuments = await reader.countDistinctDocuments();
+    const documents = distinctDocuments ?? totalChunks;
 
     const ctx: DetectorContext = {
       systemId: systemName,
@@ -163,6 +164,12 @@ export async function runScan(options: ScanOptions = {}): Promise<ScanResult> {
       limits,
       totalChunks,
       sampled: totalChunks > limits.maxChunks,
+      inventory: config?.inventory
+        ? {
+            ...config.inventory,
+            observedDocuments: distinctDocuments,
+          }
+        : undefined,
     };
 
     stderr("Running detectors…\n");
@@ -217,6 +224,7 @@ export async function runScan(options: ScanOptions = {}): Promise<ScanResult> {
         connection: { env: connectionEnv },
         mapping,
         ...(config?.sources ? { sources: config.sources } : {}),
+        ...(config?.inventory ? { inventory: config.inventory } : {}),
         ...(config?.sync ? { sync: config.sync } : {}),
         telemetry: consent,
         ...(config?.thresholds ? { thresholds: config.thresholds } : {}),

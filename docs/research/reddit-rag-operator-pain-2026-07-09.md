@@ -94,3 +94,21 @@ Build a focused "structured RAG rot" batch:
 Do not build query rewriting, GraphRAG-specific checks, image retrieval checks,
 or embedding-model benchmarking in this batch. They are real pains, but they are
 not reliably detectable from a read-only Postgres scan.
+
+## Follow-up Batch: Explicit Inventory Drift
+
+Issue [#20](https://github.com/victorioussol/chunkfunk-cli/issues/20) adds a
+separate evidence stream from public LangChain/langchain-postgres reports where
+upstream ingestion can silently truncate, skip, or overwrite rows. ChunkFunk
+should not guess the expected corpus size, but it can safely compare explicit
+operator-provided minimums in `chunkfunk.yaml` with observed chunk/document
+counts.
+
+Build only the opt-in version:
+
+- If `inventory.minChunks` is configured, compare it with observed chunk rows.
+- If `inventory.minDocuments` is configured and a document id is mapped, compare
+  it with observed distinct document ids.
+- If document ids are not mapped, report that document inventory cannot be
+  verified instead of guessing.
+- Do not print source names, document names, row values, or connection strings.
