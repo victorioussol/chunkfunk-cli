@@ -10,7 +10,8 @@ anonymous access to `x.com` returned `403 AbuseAlleviationError` and Nitter
 search returned an empty page. Follow-up retries after PR #28 and after the
 share-safe report batch saw the same blocked/empty results, including public
 searches for `site:x.com` RAG chunking, pgvector, citations, and retrieval
-debugging. Do not treat X as researched in this pass.
+debugging. A later Firecrawl pass returned X.com result snippets, but not enough
+full-thread context to treat X as deeply researched.
 
 ## Strong Evidence
 
@@ -151,3 +152,60 @@ Build only the privacy-safe version:
 - Add a fixture with boundary-damaged chunks and packaged smoke coverage.
 - Group next actions by repair category/title so screenshots are easier to act
   on and less noisy.
+
+## Firecrawl Follow-up: Retrieval Trace Signals
+
+On 2026-07-09, Firecrawl was used with the public search endpoint against Reddit
+and X-style queries. It returned useful Reddit/X result snippets for four
+queries, then stopped with insufficient credits on broader web searches. The raw
+result file was kept in `/private/tmp`, not committed, because only source
+links and short research summaries belong in the public repo.
+
+### Additional Strong Signals
+
+| # | Pain signal | Source | ChunkFunk decision |
+|---:|---|---|---|
+| 37 | Some operators explicitly say wrong RAG answers often start with bad retrieval, not the model. | [LangChain: RAG wrong answers / model is not the root cause](https://www.reddit.com/r/LangChain/comments/1t755ep/your_rag_isnt_giving_wrong_answers_because_of_the/) | Reinforces chunking, citation, and retrieval-readiness checks already shipped. |
+| 38 | Production RAG maintenance is described as ongoing "babysitting"; retrieval eval needs to be separated from generation eval. | [LangChain: production RAG maintenance](https://www.reddit.com/r/LangChain/comments/1tk8jcw/nobody_tells_you_that_rag_in_production_is_mostly/) | Strong PMF support for a maintenance scanner, but eval-suite management is out of CLI scope for now. |
+| 39 | Builders report getting stuck debugging RAG until they inspect the chunks first. | [LangChain: stuck debugging RAG every week](https://www.reddit.com/r/LangChain/comments/1t3oaxg/i_got_stuck_debugging_rag_every_week_turns_out_i/) | Directly supports the positioning: run ChunkFunk before manual retrieval debugging. |
+| 40 | Local/private RAG users ask how to retrieve flexible surrounding context around a matching chunk. | [LocalLLaMA: flexible context retrieval](https://www.reddit.com/r/LocalLLaMA/comments/17p31mc/rag_flexible_context_retrieval_around_a_matching/) | Supports boundary/context diagnostics; do not build runtime retrieval-window features in the CLI. |
+| 41 | Builders want granular source citations from the chunks sent into final generation. | [LocalLLaMA: source citations in RAG](https://www.reddit.com/r/LocalLLaMA/comments/1e5emhi/want_to_understand_how_citations_of_sources_work/) | Reinforces source/page/row locator coverage as a trust signal. |
+| 42 | Users report retrieved chunks do not seem to match well and ask for RAG pointers. | [LocalLLaMA: retrieved chunks do not seem to work](https://www.reddit.com/r/LocalLLaMA/comments/16mq8kx/need_some_pointers_for_rag_chunks_retrieved_dont/) | Supports first-scan chunk/database suspects, not prompt-chain diagnosis. |
+| 43 | Legal RAG users discuss citation verification and transformed/OCR text. | [r/RAG: legal citation verification](https://www.reddit.com/r/Rag/comments/1tavsaz/is_my_approach_sound_citation_verification_in/) | Supports citation/source traceability checks; OCR/source-file inspection remains outside the read-only database wedge. |
+| 44 | Builders describe pipelines that passed tests but failed after retrieval pulled irrelevant chunks. | [r/RAG: pipeline worked in tests and failed in production](https://www.reddit.com/r/Rag/comments/1uls9u8/shipped_a_rag_pipeline_that_worked_in_every_test/) | Supports report copy that points operators to retrieval-layer and data-layer checks first. |
+| 45 | Legal-document builders ask for advanced chunking and metadata strategies. | [r/RAG: legal chunking and retrieval strategies](https://www.reddit.com/r/Rag/comments/1jdi4sg/advanced_chunkingretrieving_strategies_for_legal/) | Reinforces metadata/filter and chunk-shape checks; no legal-specific adapter yet. |
+| 46 | A retrieval trace feature request asks for retrieved chunks, reranked results, final context, and source attribution when answers are wrong. | [FastGPT: Retrieval Trace View for RAG Debugging](https://github.com/labring/FastGPT/issues/7113) | Strong evidence for trace views, but this belongs to runtime observability unless ChunkFunk gets an explicit sanitized trace input. |
+| 47 | A backend-debugging request asks to log retrieved chunk ids, parent names, chunk text, scores, strategy, timestamps, model, and metadata. | [AgentCloud: improve RAG debugging in backend](https://github.com/rnadigital/agentcloud/issues/176) | Confirms real operator pain, but the requested payload includes private prompt/chunk/metadata data that ChunkFunk must not infer or print. |
+| 48 | A RAG trace UI bug hid the only retrieved document, making debugging misleading. | [Future AGI: retrieval span hides the only retrieved document](https://github.com/future-agi/future-agi/issues/1240) | Trace inspection is valuable, but it is a different product surface from read-only database scanning. |
+
+### Weak X/Twitter Signals
+
+Firecrawl returned X.com snippets, but not enough full-thread context for strong
+research claims:
+
+| Signal | Source | Why weaker |
+|---|---|---|
+| RAG mistakes include chunking by characters instead of meaning, splitting mid-table/mid-function, missing eval sets, and blindly stuffing top-k. | [X: top RAG mistakes](https://x.com/0xlelouch_/status/2071942174325805192) | Useful alignment with shipped checks, but only a snippet was accessible. |
+| RAG bugs are often bad data rather than the model. | [X: reliability and RAG bugs](https://x.com/0xlelouch_/status/2073060739900756039) | Supports positioning, but only a snippet was accessible. |
+| A builder describes a proper RAG system becoming slow and complex after debates over chunking and metadata filtering. | [X: RAG complexity](https://x.com/mksglu/status/2015422422950818205) | Good GTM language, but not enough detail for a detector. |
+| Chunking determines the unit of information a retriever can return. | [X: RAG begins at the source](https://x.com/techNmak/status/2068683947899273295) | Good educational framing, but not a new product requirement. |
+
+### Issue #26 Decision
+
+Issue [#26](https://github.com/victorioussol/chunkfunk-cli/issues/26) asked
+whether ChunkFunk should diagnose retrieval-query behavior beyond stored data.
+The Firecrawl pass increases confidence that retrieval tracing is painful and
+valuable, but it does **not** increase confidence that ChunkFunk should guess it
+from a read-only Postgres scan.
+
+Do not build query-rewrite, reranker, prompt-chain, or live trace diagnostics
+yet. A future version may revisit this only if users provide an explicit,
+sanitized input format such as:
+
+- query/result JSON with chunk ids and scores but no text;
+- redacted retriever trace exports;
+- synthetic query fixtures created by the user.
+
+Until then, ChunkFunk should say what it can prove from the stored evidence
+layer: chunk shape, locator coverage, metadata/filter readiness, timestamps,
+duplicates, embeddings, index health, and inventory drift.
