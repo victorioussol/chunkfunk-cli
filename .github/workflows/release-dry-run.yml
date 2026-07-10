@@ -1,0 +1,32 @@
+name: Release dry run
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - "README.md"
+      - "LICENSE"
+      - "TELEMETRY.md"
+      - "packages/**"
+      - "scripts/clean-dist.mjs"
+      - "scripts/mark-bin-executable.mjs"
+      - "scripts/synthetic-cli-smoke.mjs"
+      - ".github/workflows/release-dry-run.yml"
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - name: Preview npm publication without publishing
+        run: npm run publish:dry-run
