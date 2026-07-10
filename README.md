@@ -142,6 +142,7 @@ New contributors are welcome. Good first contributions include schema reports, f
 Start here:
 
 - [docs/first-contribution.md](docs/first-contribution.md) gives new contributors a small first path.
+- [docs/operator-beta.md](docs/operator-beta.md) gives RAG operators a safe 10-minute beta path.
 - [docs/sanitized-schema-sharing.md](docs/sanitized-schema-sharing.md) explains how to share schema details safely.
 - [CONTRIBUTING.md](CONTRIBUTING.md) explains how to make a useful pull request.
 - [SUPPORT.md](SUPPORT.md) explains where to ask questions or report problems.

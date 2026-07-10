@@ -6,7 +6,7 @@ ChunkFunk is maintained as an open-source project. The best support path is GitH
 
 - Bug: use the bug report form.
 - New schema support: use the schema support form.
-- Feedback from a real first scan: use the RAG operator feedback form.
+- Feedback from a real first scan: follow the [RAG operator beta guide](docs/operator-beta.md), then use the RAG operator feedback form.
 - Docs problem: use the documentation form.
 - Bigger idea: use the feature request form.
 
