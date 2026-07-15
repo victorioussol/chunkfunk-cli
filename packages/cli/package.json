@@ -15,7 +15,7 @@
   "dependencies": {
     "@chunkfunk/core": "*",
     "@inquirer/prompts": "^7.2.1",
-    "commander": "^12.1.0",
+    "commander": "^15.0.0",
     "pg": "^8.13.1",
     "pg-query-stream": "^4.7.1",
     "picocolors": "^1.1.1",
