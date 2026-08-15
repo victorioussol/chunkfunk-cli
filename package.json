@@ -41,7 +41,7 @@
     "publish:dry-run": "npm publish --dry-run"
   },
   "dependencies": {
-    "@inquirer/prompts": "^7.2.1",
+    "@inquirer/prompts": "^8.5.2",
     "commander": "^12.1.0",
     "pg": "^8.13.1",
     "pg-query-stream": "^4.7.1",
